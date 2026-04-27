@@ -9,7 +9,7 @@
   [ ] dataview.png               Rendered TABLE … WHERE … block — uncomment <details> below when added
 -->
 
-<h1 align="center">Astro Vault Template</h1>
+<h1 align="center">Astro Publish</h1>
 
 <p align="center">
   <strong>A self-hosted, $0 alternative to Obsidian Publish.</strong><br>
@@ -46,6 +46,8 @@
 Obsidian Publish is $10/month per vault, hosted on Obsidian's infrastructure. This template gives you the same UI — collapsible folder tree, wikilinks with hover previews, scroll-spy TOC, force-directed graph, ⌘K full-text search, dark/light theme — as a static site you fully control.
 
 The vault lives as plain markdown in `content/`. A custom Astro publishing layer reads it at build time and emits a static site that runs anywhere — Cloudflare Pages, Netlify, GitHub Pages, S3, your own box. No server, no database, no recurring fees.
+
+Want it private? Optional email-based access control via **Cloudflare Access** gates the whole site (or specific paths) behind one-time-code login — also free for 50 users.
 
 > **Total infrastructure cost on Cloudflare Pages + Cloudflare Access:** $0.
 
