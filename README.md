@@ -4,9 +4,9 @@
   [✓] full-text-search.png       ⌘K palette with results
   [✓] wikilink-hover-previews.png  Wikilink hover popover
   [✓] mobile-first.png           Phone-width slide-out nav
+  [✓] dataview.png               Rendered TABLE … WHERE … block
   [ ] hero-light.png             Desktop note view (light) — uncomment <picture> below when added
   [ ] hero-dark.png              Same in dark mode
-  [ ] dataview.png               Rendered TABLE … WHERE … block — uncomment <details> below when added
 -->
 
 <h1 align="center">Astro Publish</h1>
@@ -94,6 +94,15 @@ Want it private? Optional email-based access control via **Cloudflare Access** g
       <img src="docs/images/mobile-first.png" alt="Mobile view with slide-out nav" width="55%">
     </td>
   </tr>
+  <tr>
+    <td width="55%" align="center" valign="middle">
+      <img src="docs/images/dataview.png" alt="Rendered dataview table" width="100%">
+    </td>
+    <td width="45%" valign="middle">
+      <h3>Dataview tables</h3>
+      <p>Drive automatic tables off frontmatter with a useful subset of Obsidian's Dataview syntax — <code>TABLE … FROM … WHERE … SORT …</code>, with <code>contains()</code>, <code>link()</code>, and identifier paths. Rendered at build, no client-side runtime.</p>
+    </td>
+  </tr>
 </table>
 
 ---
@@ -127,15 +136,6 @@ Replace `content/` with your own Obsidian vault (or set `OBSIDIAN_VAULT_DIR` to 
 - **Dataview subset** — `TABLE [WITHOUT ID] … WHERE … SORT …`, with `contains()`, `link()`, identifier paths (`type`, `this.slug`, `file.path`), and the boolean ops.
 - **`draft: true` / `publish: false`** — exclude a note from the published site.
 - **Frontmatter `aliases`** — alternate names a wikilink can resolve to.
-
-<!--
-  Dataview screenshot — uncomment once docs/images/dataview.png exists.
-<details>
-<summary><strong>Dataview example</strong> — rendered <code>TABLE … WHERE …</code> block</summary>
-<br>
-<p align="center"><img src="docs/images/dataview.png" alt="Rendered dataview table"></p>
-</details>
--->
 
 ---
 
