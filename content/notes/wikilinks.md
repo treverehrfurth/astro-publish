@@ -30,7 +30,7 @@ If nothing resolves, the link renders with an `unresolved` class so you can spot
 
 `![[image.png]]` embeds the asset inline. The loader copies any `.png .jpg .jpeg .gif .webp .svg .avif .bmp .tiff .ico` it finds in the vault into `public/_evidence/` and rewrites the embed to point at the served URL.
 
-![[sample.svg]]
+![[sample.jpg]]
 
 ## File embeds (PDFs, etc.)
 

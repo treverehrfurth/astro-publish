@@ -24,6 +24,9 @@ const backlinks = data.backlinks
 // Page-header meta bar — driven by src/config/site.ts. Each entry pulls a
 // frontmatter value (with `date` falling back to the loader-extracted ISO
 // date), runs an optional formatter, and skips empty/missing values.
+// YAML date values round-trip through `toISOString()` and arrive here as
+// `2026-04-20T00:00:00.000Z` — strip the midnight time portion for display.
+const ISO_MIDNIGHT_RE = /^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.000)?Z$/;
 const fm = data.frontmatter as Record<string, unknown>;
 const metaFields: Array<{ label: string; value: string }> = [];
 for (const f of siteConfig.metaFields) {
@@ -34,7 +37,8 @@ for (const f of siteConfig.metaFields) {
   } else if (raw == null) {
     value = undefined;
   } else if (typeof raw === 'string') {
-    value = raw;
+    const m = raw.match(ISO_MIDNIGHT_RE);
+    value = m ? m[1] : raw;
   } else if (typeof raw === 'number' || typeof raw === 'boolean') {
     value = String(raw);
   } else if (raw instanceof Date) {

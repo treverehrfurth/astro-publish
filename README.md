@@ -1,18 +1,104 @@
-# Astro Vault Template
+<!--
+  Image checklist (docs/images/):
+  [✓] local-graph.png            Local force-directed graph
+  [✓] full-text-search.png       ⌘K palette with results
+  [✓] wikilink-hover-previews.png  Wikilink hover popover
+  [✓] mobile-first.png           Phone-width slide-out nav
+  [ ] hero-light.png             Desktop note view (light) — uncomment <picture> below when added
+  [ ] hero-dark.png              Same in dark mode
+  [ ] dataview.png               Rendered TABLE … WHERE … block — uncomment <details> below when added
+-->
 
-A self-hosted, $0 alternative to **Obsidian Publish** — publish any Obsidian vault as a fast static site that closely mimics the Obsidian Publish UI: collapsible folder tree, wiki-style links with hover previews, scroll-spy table of contents, local force-directed graph, ⌘K full-text search, dark/light theme, and mobile slide-outs.
+<h1 align="center">Astro Vault Template</h1>
 
-The vault lives as plain markdown in `content/`. A custom Astro publishing layer in `src/` reads it at build time and emits a static site that runs anywhere — Cloudflare Pages, Netlify, GitHub Pages, S3, your own box. No server, no database, no recurring fees.
+<p align="center">
+  <strong>A self-hosted, $0 alternative to Obsidian Publish.</strong><br>
+  Publish any Obsidian vault as a fast static site that looks and feels like Obsidian Publish — for free.
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="docs/deployment.md">Deploy</a> ·
+  <a href="docs/authoring.md">Author</a> ·
+  <a href="docs/architecture.md">How it works</a>
+</p>
+
+<p align="center">
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue.svg">
+  <img alt="Built with Astro" src="https://img.shields.io/badge/built%20with-Astro-ff5d01.svg">
+  <img alt="Hosting cost" src="https://img.shields.io/badge/hosting-%240%2Fmo-brightgreen.svg">
+</p>
+
+<!--
+  Hero shot — uncomment once docs/images/hero-light.png and hero-dark.png exist.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.png">
+    <img alt="A note rendered with collapsible folder tree and scroll-spy table of contents" src="docs/images/hero-light.png" width="100%">
+  </picture>
+</p>
+-->
+
+---
+
+## Why this exists
+
+Obsidian Publish is $10/month per vault, hosted on Obsidian's infrastructure. This template gives you the same UI — collapsible folder tree, wikilinks with hover previews, scroll-spy TOC, force-directed graph, ⌘K full-text search, dark/light theme — as a static site you fully control.
+
+The vault lives as plain markdown in `content/`. A custom Astro publishing layer reads it at build time and emits a static site that runs anywhere — Cloudflare Pages, Netlify, GitHub Pages, S3, your own box. No server, no database, no recurring fees.
 
 > **Total infrastructure cost on Cloudflare Pages + Cloudflare Access:** $0.
+
+---
+
+## Highlights
+
+<table>
+  <tr>
+    <td width="55%" align="center" valign="middle">
+      <img src="docs/images/full-text-search.png" alt="⌘K search palette" width="100%">
+    </td>
+    <td width="45%" valign="middle">
+      <h3>⌘K full-text search</h3>
+      <p>Pagefind-powered, indexed at build time, runs entirely in the browser. Press <kbd>⌘</kbd><kbd>K</kbd> anywhere to fuzzy-search every note — no server, no API key.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="45%" valign="middle">
+      <h3>Wikilink hover previews</h3>
+      <p>Hover any <code>[[link]]</code> to see the target's title, tags, and a snippet of body text — the same affordance Obsidian Publish ships with, rendered statically.</p>
+    </td>
+    <td width="55%" align="center" valign="middle">
+      <img src="docs/images/wikilink-hover-previews.png" alt="Wikilink hover preview" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="45%" align="center" valign="middle">
+      <img src="docs/images/local-graph.png" alt="Local force-directed graph" width="85%">
+    </td>
+    <td width="55%" valign="middle">
+      <h3>Local graph</h3>
+      <p>Force-directed view of every note and its connections, colored by <code>type</code> frontmatter (or top-level folder). Drag to rearrange, scroll to zoom.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="55%" valign="middle">
+      <h3>Mobile-first</h3>
+      <p>Sticky topbar with directory and contents slide-outs at narrow widths, with a unified backdrop tap-to-close. Reads as well on a phone as on desktop.</p>
+    </td>
+    <td width="45%" align="center" valign="middle">
+      <img src="docs/images/mobile-first.png" alt="Mobile view with slide-out nav" width="55%">
+    </td>
+  </tr>
+</table>
 
 ---
 
 ## Quick start
 
 ```bash
-# Use this repo as a GitHub template (or):
-npm create astro@latest -- --template <your-org>/astro-vault-template
+# Use this repo as a GitHub template, or:
+npm create astro@latest -- --template <owner>/astro-vault-template
 
 cd astro-vault-template
 npm install
@@ -21,18 +107,6 @@ npm run build    # static build into dist/, plus Pagefind search index
 ```
 
 Replace `content/` with your own Obsidian vault (or set `OBSIDIAN_VAULT_DIR` to point at one outside the repo) and the renderer picks it up automatically.
-
----
-
-## Customizing
-
-The single customization surface is [`src/config/site.ts`](src/config/site.ts). Edit it to:
-
-- **Add meta-bar fields** — show frontmatter values like `author`, `status`, or `read time` in the page header.
-- **Color the graph** — map `type` frontmatter values (or top-level folder names) to specific node colors.
-- **Configure folder-collapse filenames** — defaults to `index.md` and `welcome.md`.
-
-Defaults work out-of-the-box; you only edit the config if you want richer behavior.
 
 ---
 
@@ -47,7 +121,27 @@ Defaults work out-of-the-box; you only edit the config if you want richer behavi
 - **Dataview subset** — `TABLE [WITHOUT ID] … WHERE … SORT …`, with `contains()`, `link()`, identifier paths (`type`, `this.slug`, `file.path`), and the boolean ops.
 - **`draft: true` / `publish: false`** — exclude a note from the published site.
 - **Frontmatter `aliases`** — alternate names a wikilink can resolve to.
-- **Mobile-first** — sticky topbar with directory + contents slide-outs at narrow widths, with a unified backdrop tap-to-close.
+
+<!--
+  Dataview screenshot — uncomment once docs/images/dataview.png exists.
+<details>
+<summary><strong>Dataview example</strong> — rendered <code>TABLE … WHERE …</code> block</summary>
+<br>
+<p align="center"><img src="docs/images/dataview.png" alt="Rendered dataview table"></p>
+</details>
+-->
+
+---
+
+## Customizing
+
+The single customization surface is [`src/config/site.ts`](src/config/site.ts). Edit it to:
+
+- **Add meta-bar fields** — show frontmatter values like `author`, `status`, or `read time` in the page header.
+- **Color the graph** — map `type` frontmatter values (or top-level folder names) to specific node colors.
+- **Configure folder-collapse filenames** — defaults to `index.md` and `welcome.md`.
+
+Defaults work out-of-the-box; you only edit the config if you want richer behavior.
 
 ---
 
