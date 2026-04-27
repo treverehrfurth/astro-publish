@@ -1,0 +1,111 @@
+---
+import Layout from './Layout.astro';
+import RightRail from '@/components/RightRail.astro';
+import { getCollection } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+import { siteConfig } from '@/config/site';
+
+interface Props {
+  entry: CollectionEntry<'notes'>;
+}
+
+const { entry } = Astro.props as Props;
+const { data } = entry;
+
+// Build backlinks with title resolution.
+const all = await getCollection('notes');
+const slugMap = new Map(all.map((n) => [n.data.slug, n]));
+const backlinks = data.backlinks
+  .map((s) => slugMap.get(s))
+  .filter((n): n is typeof all[number] => !!n)
+  .map((n) => ({ slug: n.data.slug, title: n.data.title }))
+  .sort((a, b) => a.title.localeCompare(b.title));
+
+// Page-header meta bar — driven by src/config/site.ts. Each entry pulls a
+// frontmatter value (with `date` falling back to the loader-extracted ISO
+// date), runs an optional formatter, and skips empty/missing values.
+const fm = data.frontmatter as Record<string, unknown>;
+const metaFields: Array<{ label: string; value: string }> = [];
+for (const f of siteConfig.metaFields) {
+  const raw = fm[f.key] ?? (f.key === 'date' ? data.date : undefined);
+  let value: string | undefined;
+  if (f.format) {
+    value = f.format(raw);
+  } else if (raw == null) {
+    value = undefined;
+  } else if (typeof raw === 'string') {
+    value = raw;
+  } else if (typeof raw === 'number' || typeof raw === 'boolean') {
+    value = String(raw);
+  } else if (raw instanceof Date) {
+    value = raw.toISOString().slice(0, 10);
+  }
+  if (value && value.trim()) metaFields.push({ label: f.label, value });
+}
+
+// Strip a leading "YYYY-MM-DD - " (or "YYYY-MM-DD ") from the displayed
+// title — the date already appears in the meta bar below. The left-nav
+// label is unaffected (it uses the raw `data.title`).
+const displayTitle = data.title.replace(/^\d{4}-\d{2}-\d{2}\s*[-–—]?\s*/, '').trim() || data.title;
+
+// Evidence panel
+const evidence = data.evidence ?? [];
+---
+
+<Layout title={displayTitle} currentSlug={data.slug}>
+  <article class="note-shell">
+    {data.slug !== '' && (
+      <header class="note-header">
+        <h1 class="note-title">{displayTitle}</h1>
+        {metaFields.length > 0 && (
+          <dl class="note-meta">
+            {metaFields.map((f) => (
+              <span class="note-meta-row"><dt>{f.label}</dt><dd>{f.value}</dd></span>
+            ))}
+          </dl>
+        )}
+        {data.tags.length > 0 && (
+          <p class="note-tags" style="margin: -0.25rem 0 1rem;">
+            {data.tags.map((t) => (
+              <a class="tag-pill" href={`/tags/${t}`}>{`#${t}`}</a>
+            ))}
+          </p>
+        )}
+      </header>
+    )}
+
+    <div class="note-body" set:html={data.html} />
+
+    {evidence.length > 0 && (
+      <section class="evidence-panel" style="margin-top: 3rem; padding: 1rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-alt);">
+        <h2 style="font-size: 1em; text-transform: uppercase; letter-spacing: .08em; color: var(--text-faint); margin: 0 0 .5rem;">Evidence</h2>
+        <ul style="list-style: none; padding: 0; margin: 0;">
+          {evidence.map((ev) => {
+            if (ev.kind === 'eml' || !ev.href) {
+              return <li style="margin: .25em 0; color: var(--text-faint);">{ev.label} <span style="font-size:.85em;">(redacted)</span></li>;
+            }
+            return (
+              <li style="margin: .25em 0;">
+                <a href={ev.href} class="wiki-evidence" style="color: var(--text);">{ev.label}</a>
+                <span style="margin-left: .5em; font-size: .8em; color: var(--text-faint); text-transform: uppercase;">{ev.kind}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    )}
+
+    {backlinks.length > 0 && (
+      <section class="backlinks-block">
+        <h2>Backlinks</h2>
+        <ul class="backlinks-list">
+          {backlinks.map((bl) => (
+            <li><a href={`/${bl.slug}`}>{bl.title}</a></li>
+          ))}
+        </ul>
+      </section>
+    )}
+  </article>
+
+  <RightRail slot="rail" toc={data.toc} slug={data.slug} />
+</Layout>

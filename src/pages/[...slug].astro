@@ -1,0 +1,58 @@
+---
+import { getCollection } from 'astro:content';
+import NoteLayout from '@/layouts/NoteLayout.astro';
+import FolderListing from '@/components/FolderListing.astro';
+
+export async function getStaticPaths() {
+  const notes = await getCollection('notes');
+  const noteSlugs = new Set(notes.map((n) => n.data.slug));
+
+  // Notes — direct entries.
+  const noteRoutes = notes.map((entry) => ({
+    params: { slug: entry.data.slug || undefined },
+    props: { kind: 'note' as const, entry },
+  }));
+
+  // Auto-generated folder index for any folder prefix that isn't itself a note.
+  const folders = new Map<string, typeof notes>();
+  for (const n of notes) {
+    if (!n.data.slug) continue;
+    const segs = n.data.slug.split('/');
+    for (let i = 1; i < segs.length; i++) {
+      const folderSlug = segs.slice(0, i).join('/');
+      if (noteSlugs.has(folderSlug)) continue;
+      const arr = folders.get(folderSlug) ?? [];
+      arr.push(n);
+      folders.set(folderSlug, arr);
+    }
+  }
+  // For each folder, only include its DIRECT children (one segment deeper).
+  const folderRoutes = Array.from(folders.entries()).map(([folderSlug, all]) => {
+    const direct = all.filter((n) => {
+      const rest = n.data.slug.slice(folderSlug.length + 1);
+      return rest && !rest.includes('/');
+    });
+    const folderTitle = folderSlug.split('/').pop()!;
+    const pretty = folderTitle
+      .split(/[-_]+/)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+    return {
+      params: { slug: folderSlug },
+      props: { kind: 'folder' as const, slug: folderSlug, title: pretty, children: direct },
+    };
+  });
+
+  return [...noteRoutes, ...folderRoutes];
+}
+
+const props = Astro.props as
+  | { kind: 'note'; entry: import('astro:content').CollectionEntry<'notes'> }
+  | { kind: 'folder'; slug: string; title: string; children: import('astro:content').CollectionEntry<'notes'>[] };
+---
+
+{props.kind === 'note' ? (
+  <NoteLayout entry={props.entry} />
+) : (
+  <FolderListing slug={props.slug} title={props.title} children={props.children} />
+)}

@@ -1,0 +1,43 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '@/layouts/Layout.astro';
+import { tagSlug } from '@/lib/slugify';
+
+export async function getStaticPaths() {
+  const notes = await getCollection('notes');
+  const byTag = new Map<string, typeof notes>();
+  for (const n of notes) {
+    for (const tag of n.data.tags) {
+      const slug = tagSlug(tag);
+      const arr = byTag.get(slug) ?? [];
+      arr.push(n);
+      byTag.set(slug, arr);
+    }
+  }
+  return Array.from(byTag.entries()).map(([slug, entries]) => ({
+    params: { tag: slug },
+    props: { tag: slug, entries: entries.sort((a, b) => (b.data.date ?? '').localeCompare(a.data.date ?? '')) },
+  }));
+}
+
+const { tag, entries } = Astro.props as { tag: string; entries: Awaited<ReturnType<typeof getCollection<'notes'>>> };
+---
+
+<Layout title={`#${tag}`} currentSlug={`tags/${tag}`}>
+  <div class="note-shell">
+    <h1 class="note-title">#{tag}</h1>
+    <p style="color: var(--text-muted);">{entries.length} note{entries.length === 1 ? '' : 's'} tagged with this label.</p>
+    <ul style="list-style: none; padding: 0; margin-top: 2rem;">
+      {entries.map((n) => (
+        <li style="padding: .75rem 0; border-bottom: 1px solid var(--border);">
+          <a href={`/${n.data.slug}`} style="font-weight: 500; font-size: 1.05em; text-decoration: none; color: var(--text);">{n.data.title}</a>
+          <div style="font-size: .85em; color: var(--text-muted); margin-top: .2em;">
+            {n.data.date && <span>{n.data.date}</span>}
+            {n.data.noteType && <span> · {n.data.noteType}</span>}
+            {n.data.folder.length > 0 && <span> · {n.data.folder.join(' / ')}</span>}
+          </div>
+        </li>
+      ))}
+    </ul>
+  </div>
+</Layout>

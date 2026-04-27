@@ -1,0 +1,225 @@
+---
+// Renders a force-directed graph in the right rail (mode="local") or in a modal (mode="global").
+// Loaded as a deferred client island so it doesn't block first paint.
+//
+// Node colors come from `siteConfig.graphColors` — emitted here as a JSON
+// blob so the client-side script can pick it up without bundling the
+// config module.
+import { siteConfig } from '@/config/site';
+const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
+---
+
+<script type="application/json" id="graph-colors-config" set:html={graphColorsJson}></script>
+
+<script>
+  import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from 'd3-force';
+
+  type GraphNode = { id: string; title: string; group?: string; x?: number; y?: number; vx?: number; vy?: number; fx?: number | null; fy?: number | null };
+  type GraphEdge = { source: string | GraphNode; target: string | GraphNode };
+
+  type GraphData = { nodes: GraphNode[]; edges: GraphEdge[] };
+
+  let cached: GraphData | null = null;
+  async function loadGraph(): Promise<GraphData> {
+    if (cached) return cached;
+    const r = await fetch('/graph.json');
+    cached = (await r.json()) as GraphData;
+    return cached;
+  }
+
+  // Color map injected from src/config/site.ts via the inline JSON blob
+  // above. CSS-var references like `var(--accent)` are resolved at runtime.
+  let graphColors: Record<string, string> | null = null;
+  function loadGraphColors(): Record<string, string> {
+    if (graphColors) return graphColors;
+    const node = document.getElementById('graph-colors-config');
+    try {
+      graphColors = node && node.textContent ? JSON.parse(node.textContent) : {};
+    } catch {
+      graphColors = {};
+    }
+    return graphColors!;
+  }
+  function resolveColor(value: string, fallback: string): string {
+    if (!value) return fallback;
+    const m = value.match(/^var\((--[a-zA-Z0-9_-]+)\)$/);
+    if (m) {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim();
+      return v || fallback;
+    }
+    return value;
+  }
+  function colorForGroup(group: string | undefined, accent: string, fallback: string): string {
+    const colors = loadGraphColors();
+    if (group && colors[group]) return resolveColor(colors[group], fallback);
+    if (colors.default) return resolveColor(colors.default, fallback);
+    return accent || fallback;
+  }
+
+  async function renderGraph(host: HTMLElement, mode: 'local' | 'global', centerSlug: string | null) {
+    const data = await loadGraph();
+    const accent = getCSSVar('--accent') || '#9b6cff';
+    const muted = getCSSVar('--text-faint') || '#666';
+    const text = getCSSVar('--text-muted') || '#999';
+    const edgeColor = getCSSVar('--border-strong') || '#444';
+
+    let nodes = data.nodes;
+    let edges = data.edges;
+
+    if (mode === 'local' && centerSlug != null) {
+      const keep = new Set<string>([centerSlug]);
+      for (const e of data.edges) {
+        const s = typeof e.source === 'string' ? e.source : e.source.id;
+        const t = typeof e.target === 'string' ? e.target : e.target.id;
+        if (s === centerSlug) keep.add(t);
+        if (t === centerSlug) keep.add(s);
+      }
+      nodes = data.nodes.filter((n) => keep.has(n.id));
+      edges = data.edges.filter((e) => {
+        const s = typeof e.source === 'string' ? e.source : e.source.id;
+        const t = typeof e.target === 'string' ? e.target : e.target.id;
+        return keep.has(s) && keep.has(t);
+      });
+    }
+
+    // Map edge source/target strings to node refs (d3-force will mutate to objects)
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const linkData = edges
+      .map((e) => {
+        const s = byId.get(typeof e.source === 'string' ? e.source : e.source.id);
+        const t = byId.get(typeof e.target === 'string' ? e.target : e.target.id);
+        if (!s || !t) return null;
+        return { source: s, target: t };
+      })
+      .filter(Boolean) as Array<{ source: GraphNode; target: GraphNode }>;
+
+    // Canvas setup
+    const canvas = document.createElement('canvas');
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    host.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    function resize() {
+      const r = host.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.floor(r.width * dpr));
+      canvas.height = Math.max(1, Math.floor(r.height * dpr));
+      canvas.style.width = r.width + 'px';
+      canvas.style.height = r.height + 'px';
+      ctx!.setTransform(1, 0, 0, 1, 0, 0);
+      ctx!.scale(dpr, dpr);
+      sim.force('center', forceCenter(r.width / 2, r.height / 2));
+      sim.alpha(0.4).restart();
+    }
+
+    const sim = forceSimulation(nodes)
+      .force('charge', forceManyBody().strength(mode === 'local' ? -200 : -120))
+      .force('link', forceLink(linkData).id((d: any) => d.id).distance(60))
+      .force('collide', forceCollide().radius(14))
+      .force('center', forceCenter(0, 0))
+      .alphaDecay(0.04);
+
+    let hovered: GraphNode | null = null;
+
+    function draw() {
+      const r = host.getBoundingClientRect();
+      ctx!.clearRect(0, 0, r.width, r.height);
+
+      ctx!.lineWidth = 1;
+      ctx!.strokeStyle = edgeColor;
+      for (const e of linkData) {
+        ctx!.beginPath();
+        ctx!.moveTo((e.source as GraphNode).x!, (e.source as GraphNode).y!);
+        ctx!.lineTo((e.target as GraphNode).x!, (e.target as GraphNode).y!);
+        ctx!.stroke();
+      }
+
+      for (const n of nodes) {
+        const isCenter = n.id === centerSlug;
+        const isHovered = hovered?.id === n.id;
+        const radius = isCenter ? 6 : (isHovered ? 6 : 4);
+        ctx!.beginPath();
+        ctx!.arc(n.x!, n.y!, radius, 0, Math.PI * 2);
+        ctx!.fillStyle = isCenter ? accent : colorForGroup(n.group, accent, muted);
+        ctx!.fill();
+        if (isHovered) {
+          ctx!.font = '11px Inter, sans-serif';
+          ctx!.fillStyle = text;
+          ctx!.fillText(n.title, n.x! + 8, n.y! + 4);
+        }
+      }
+    }
+
+    sim.on('tick', draw);
+
+    canvas.addEventListener('mousemove', (ev) => {
+      const r = canvas.getBoundingClientRect();
+      const x = ev.clientX - r.left;
+      const y = ev.clientY - r.top;
+      let best: GraphNode | null = null;
+      let bestDist = 16;
+      for (const n of nodes) {
+        const dx = (n.x ?? 0) - x;
+        const dy = (n.y ?? 0) - y;
+        const d = Math.hypot(dx, dy);
+        if (d < bestDist) { bestDist = d; best = n; }
+      }
+      if (best !== hovered) { hovered = best; draw(); canvas.style.cursor = best ? 'pointer' : 'default'; }
+    });
+
+    canvas.addEventListener('click', () => {
+      if (hovered) {
+        window.location.href = '/' + hovered.id;
+      }
+    });
+
+    new ResizeObserver(resize).observe(host);
+    resize();
+  }
+
+  function getCSSVar(name: string): string {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  // Initialise any graph widgets currently in the DOM. Re-runs on every
+  // view-transition page-load so newly-rendered rails get their graphs.
+  function initGraphs() {
+    document.querySelectorAll<HTMLElement>('.graph-widget[data-graph-mode]').forEach((host) => {
+      if ((host as any).__graphInit) return;
+      (host as any).__graphInit = true;
+      const mode = (host.getAttribute('data-graph-mode') as 'local' | 'global') ?? 'local';
+      const center = host.getAttribute('data-graph-center');
+      renderGraph(host, mode, center);
+    });
+  }
+  initGraphs();
+  document.addEventListener('astro:page-load', initGraphs);
+
+  // Expand to modal
+  document.addEventListener('click', (ev) => {
+    const btn = (ev.target as Element)?.closest?.('[data-graph-expand]');
+    if (!btn) return;
+    ev.preventDefault();
+    let modal = document.querySelector('dialog.graph-modal') as HTMLDialogElement | null;
+    if (!modal) {
+      modal = document.createElement('dialog') as HTMLDialogElement;
+      modal.className = 'graph-modal';
+      modal.innerHTML = `<button class="graph-modal-close" aria-label="Close" data-graph-close>Close</button><div class="graph-modal-body"></div>`;
+      document.body.appendChild(modal);
+      modal.addEventListener('click', (e) => {
+        if ((e.target as Element).closest('[data-graph-close]') || e.target === modal) modal!.close();
+      });
+    }
+    const body = modal.querySelector('.graph-modal-body') as HTMLElement;
+    body.innerHTML = '';
+    const widget = document.createElement('div');
+    widget.className = 'graph-widget';
+    widget.style.height = '100%';
+    body.appendChild(widget);
+    if (typeof modal.showModal === 'function') modal.showModal();
+    renderGraph(widget, 'global', null);
+  });
+</script>

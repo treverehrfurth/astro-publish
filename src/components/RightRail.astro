@@ -1,0 +1,135 @@
+---
+import type { TocItem } from '@/lib/types';
+
+interface Props {
+  toc: TocItem[];
+  slug: string;
+}
+
+const { toc, slug } = Astro.props as Props;
+
+interface TocNode {
+  item: TocItem;
+  children: TocNode[];
+}
+
+function buildTree(items: TocItem[]): TocNode[] {
+  const root: TocNode[] = [];
+  const stack: TocNode[] = [];
+  for (const item of items) {
+    const node: TocNode = { item, children: [] };
+    while (stack.length && stack[stack.length - 1].item.depth >= item.depth) stack.pop();
+    if (stack.length === 0) root.push(node);
+    else stack[stack.length - 1].children.push(node);
+    stack.push(node);
+  }
+  return root;
+}
+
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+
+function renderNodes(nodes: TocNode[]): string {
+  if (!nodes.length) return '';
+  const lis = nodes
+    .map((n) => {
+      const hasChildren = n.children.length > 0;
+      const liClass = `toc-item depth-${n.item.depth}${hasChildren ? ' has-children' : ''}`;
+      const sub = hasChildren ? `<div class="toc-collapse"><div class="toc-collapse-inner">${renderNodes(n.children)}</div></div>` : '';
+      return `<li class="${liClass}"><a href="#${n.item.id}" class="toc-link" data-toc-id="${n.item.id}">${escapeHtml(n.item.text)}</a>${sub}</li>`;
+    })
+    .join('');
+  return `<ul class="toc-list">${lis}</ul>`;
+}
+
+const tocHtml = renderNodes(buildTree(toc));
+---
+
+<aside class="app-rail">
+  <section class="rail-section">
+    <h2>Local graph</h2>
+    <div class="graph-widget" data-graph-mode="local" data-graph-center={slug}>
+      <button type="button" class="graph-expand" data-graph-expand aria-label="Expand graph">⤢</button>
+    </div>
+  </section>
+
+  {toc.length > 0 && (
+    <section class="rail-section">
+      <h2>Contents</h2>
+      <nav class="toc" set:html={tocHtml}></nav>
+    </section>
+  )}
+</aside>
+
+<script is:inline>
+  // TOC scroll-spy with dynamic expand/collapse. Set up after the next
+  // animation frame and on Astro's `page-load` event so the article DOM
+  // is guaranteed to be present (during a view-transition swap, the
+  // rail's inline script can run before the new article has been
+  // inserted, in which case getElementById returns null and the script
+  // would bail before activating any TOC item).
+  (function () {
+    let prevObs = null;
+
+    function setupToc() {
+      const root = document.querySelector('.toc');
+      if (!root) return;
+      const links = root.querySelectorAll('a[data-toc-id]');
+      if (!links.length) return;
+
+      const linkById = new Map();
+      links.forEach((a) => linkById.set(a.getAttribute('data-toc-id'), a));
+
+      const headings = Array.from(linkById.keys())
+        .map((id) => document.getElementById(id))
+        .filter(Boolean);
+      if (!headings.length) return;
+
+      let activeId = null;
+
+      function setActive(id) {
+        if (id === activeId) return;
+        activeId = id;
+        root.querySelectorAll('.is-active, .has-active-descendant').forEach((el) => {
+          el.classList.remove('is-active', 'has-active-descendant');
+        });
+        const link = linkById.get(id);
+        if (!link) return;
+        link.classList.add('is-active');
+        let li = link.closest('li');
+        if (li) li.classList.add('is-active');
+        let parent = li ? li.parentElement?.closest('li') : null;
+        while (parent && root.contains(parent)) {
+          parent.classList.add('has-active-descendant');
+          parent = parent.parentElement?.closest('li');
+        }
+      }
+
+      // Disconnect any observer left over from a previous setup
+      // (re-runs after a view-transition would otherwise stack).
+      if (prevObs) prevObs.disconnect();
+      const obs = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((e) => e.isIntersecting)
+            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+          if (visible.length) setActive(visible[0].target.id);
+        },
+        { rootMargin: '-72px 0px -70% 0px' },
+      );
+      prevObs = obs;
+      headings.forEach((h) => obs.observe(h));
+
+      // Activate the first heading so the TOC isn't fully collapsed
+      // before the user scrolls.
+      if (headings[0]) setActive(headings[0].id);
+    }
+
+    function schedule() {
+      requestAnimationFrame(() => requestAnimationFrame(setupToc));
+    }
+
+    schedule();
+    document.addEventListener('astro:page-load', schedule);
+  })();
+</script>

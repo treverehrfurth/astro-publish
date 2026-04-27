@@ -1,0 +1,130 @@
+---
+// Minimal Cmd+K palette wired to Pagefind (loaded lazily on first open).
+---
+<dialog class="search-dialog" data-search-dialog>
+  <div class="search-panel">
+    <div class="search-input-wrap">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="7" cy="7" r="4.5" />
+        <line x1="10.5" y1="10.5" x2="14" y2="14" stroke-linecap="round" />
+      </svg>
+      <input class="search-input" data-search-input type="text" placeholder="Search…" autocomplete="off" />
+      <kbd>esc</kbd>
+    </div>
+    <div class="search-results" data-search-results>
+      <div class="search-empty">Start typing to search…</div>
+    </div>
+  </div>
+</dialog>
+
+<script is:inline>
+  (function () {
+    const dialog = document.querySelector('[data-search-dialog]');
+    const input = document.querySelector('[data-search-input]');
+    const results = document.querySelector('[data-search-results]');
+    const trigger = document.querySelector('[data-search-trigger]');
+    if (!dialog || !input || !results) return;
+
+    let pagefindPromise = null;
+    function loadPagefind() {
+      if (pagefindPromise) return pagefindPromise;
+      pagefindPromise = (async () => {
+        try {
+          const mod = await import(/* @vite-ignore */ '/pagefind/pagefind.js');
+          await mod.init?.();
+          return mod;
+        } catch (e) {
+          return null;
+        }
+      })();
+      return pagefindPromise;
+    }
+
+    function open() {
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+      setTimeout(() => input.focus(), 10);
+      loadPagefind();
+    }
+    function close() {
+      if (typeof dialog.close === 'function') dialog.close();
+      else dialog.removeAttribute('open');
+    }
+
+    trigger?.addEventListener('click', open);
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        open();
+      } else if (e.key === 'Escape' && dialog.open) {
+        close();
+      }
+    });
+
+    let activeIndex = -1;
+    let activeResults = [];
+
+    function renderEmpty(msg) {
+      results.innerHTML = '<div class="search-empty">' + msg + '</div>';
+    }
+
+    let lastQ = '';
+    let debounce = null;
+    input.addEventListener('input', () => {
+      const q = input.value.trim();
+      lastQ = q;
+      clearTimeout(debounce);
+      if (!q) { renderEmpty('Start typing to search…'); activeIndex = -1; activeResults = []; return; }
+      debounce = setTimeout(() => doSearch(q), 120);
+    });
+
+    async function doSearch(q) {
+      if (q !== lastQ) return;
+      const pf = await loadPagefind();
+      if (!pf) {
+        renderEmpty('Search index not available (run `npm run build` to generate).');
+        return;
+      }
+      const sr = await pf.search(q);
+      const items = await Promise.all(sr.results.slice(0, 12).map((r) => r.data()));
+      if (q !== lastQ) return;
+      if (!items.length) { renderEmpty('No results.'); return; }
+      activeResults = items;
+      activeIndex = 0;
+      results.innerHTML = items.map((d, i) => `
+        <a class="search-result" data-active="${i === 0 ? 'true' : 'false'}" data-idx="${i}" href="${d.url}">
+          <p class="search-result-title">${escape(d.meta?.title || d.url)}</p>
+          <p class="search-result-path">${escape(d.url)}</p>
+          <p class="search-result-snippet">${d.excerpt}</p>
+        </a>
+      `).join('');
+    }
+
+    function escape(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    document.addEventListener('keydown', (e) => {
+      if (!dialog.open) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!activeResults.length) return;
+        activeIndex = e.key === 'ArrowDown'
+          ? Math.min(activeResults.length - 1, activeIndex + 1)
+          : Math.max(0, activeIndex - 1);
+        const items = results.querySelectorAll('.search-result');
+        items.forEach((el, i) => el.setAttribute('data-active', String(i === activeIndex)));
+        items[activeIndex]?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        const link = results.querySelector('.search-result[data-active="true"]');
+        if (link) {
+          e.preventDefault();
+          link.click();
+        }
+      }
+    });
+
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) close();
+    });
+  })();
+</script>

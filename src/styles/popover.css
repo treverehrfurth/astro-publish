@@ -1,0 +1,65 @@
+.preview-popover {
+  position: fixed;
+  z-index: 100;
+  width: 450px;
+  max-height: 400px;
+  overflow: hidden;
+  background: var(--popover-bg);
+  border-radius: var(--r-md);
+  box-shadow: var(--popover-shadow);
+  padding: 1rem 1.25rem;
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: var(--text);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
+}
+
+.preview-popover.open {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.preview-popover h1,
+.preview-popover h2,
+.preview-popover h3 {
+  font-size: 1em;
+  margin: 0 0 0.4em;
+  border: 0;
+}
+
+.preview-popover .preview-title {
+  font-weight: 600;
+  font-size: 1em;
+  margin: 0 0 0.3em;
+  color: var(--text);
+}
+
+.preview-popover .preview-meta {
+  font-size: 0.78em;
+  color: var(--text-faint);
+  margin: 0 0 0.6em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.preview-popover .preview-body {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  max-height: 280px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent);
+  mask-image: linear-gradient(to bottom, black 70%, transparent);
+}
+
+.preview-popover .preview-body p {
+  margin: 0.4em 0;
+}
+
+.preview-popover .preview-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}

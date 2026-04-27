@@ -1,0 +1,47 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import RightRail from './RightRail.astro';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  slug: string;
+  title: string;
+  children: CollectionEntry<'notes'>[];
+}
+
+const { slug, title, children } = Astro.props as Props;
+
+const allDated = children.length > 0 && children.every((c) => !!c.data.date);
+const sorted = [...children].sort((a, b) => {
+  if (allDated) return (b.data.date ?? '').localeCompare(a.data.date ?? '');
+  return a.data.title.localeCompare(b.data.title);
+});
+---
+
+<Layout title={title} currentSlug={slug}>
+  <div class="note-shell">
+    <h1 class="note-title">{title}</h1>
+    <p style="color: var(--text-muted); margin-top: -0.5rem;">{sorted.length} {sorted.length === 1 ? 'entry' : 'entries'}</p>
+
+    <ul style="list-style: none; padding: 0; margin-top: 2rem;">
+      {sorted.map((c) => (
+        <li style="padding: .75rem 0; border-bottom: 1px solid var(--border);">
+          <a href={`/${c.data.slug}`} style="font-weight: 500; font-size: 1.05em; text-decoration: none; color: var(--text);">{c.data.title}</a>
+          <div style="font-size: .85em; color: var(--text-muted); margin-top: .2em;">
+            {c.data.date && <span>{c.data.date}</span>}
+            {c.data.noteType && <span> · {c.data.noteType}</span>}
+            {c.data.tags.length > 0 && (
+              <span style="margin-left: .25em;">
+                {c.data.tags.slice(0, 4).map((t) => (
+                  <a class="tag-pill" href={`/tags/${t}`} style="font-size: .8em; margin-left: .25em;">#{t}</a>
+                ))}
+              </span>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
+  </div>
+
+  <RightRail slot="rail" toc={[]} backlinks={[]} slug={slug} />
+</Layout>

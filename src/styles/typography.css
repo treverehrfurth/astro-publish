@@ -1,0 +1,305 @@
+/* Article-level H1 (the page title in NoteLayout / FolderListing — outside
+   .note-body so it doesn't pick up the bordered-heading style). Locked
+   down here so its baseline is predictable for nav alignment, but kept at
+   the original ~2em size. */
+.note-title {
+  font-size: 2em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  margin: 0 0 0.5rem;
+  color: var(--text);
+}
+
+.note-body {
+  font-size: 1rem;
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.note-body > * + * {
+  margin-top: 1rem;
+}
+
+.note-body h1,
+.note-body h2,
+.note-body h3,
+.note-body h4,
+.note-body h5,
+.note-body h6 {
+  margin: 2rem 0 0.5rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.note-body h1 {
+  font-size: 2.4em;
+  margin-top: 0;
+  letter-spacing: -0.02em;
+}
+.note-body h2 {
+  font-size: 1.6em;
+}
+.note-body h3 {
+  font-size: 1.3em;
+}
+.note-body h4 {
+  font-size: 1.1em;
+}
+.note-body h5,
+.note-body h6 {
+  font-size: 1em;
+  color: var(--text-muted);
+}
+
+.note-body p {
+  margin: 1em 0;
+}
+
+.note-body strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.note-body em {
+  font-style: italic;
+}
+
+.note-body blockquote {
+  margin: 1em 0;
+  padding: 0.4em 1em;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.note-body blockquote p {
+  margin: 0.4em 0;
+}
+
+.note-body code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--code-bg);
+  padding: 0.15em 0.35em;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+}
+
+.note-body pre {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--code-bg);
+  padding: 1em;
+  border-radius: var(--r-md);
+  overflow: auto;
+  border: 1px solid var(--border);
+  line-height: 1.5;
+}
+
+.note-body pre code {
+  background: transparent;
+  padding: 0;
+  border: 0;
+  font-size: inherit;
+}
+
+/* Shiki dual-theme */
+:root[data-theme='dark'] .shiki,
+:root[data-theme='dark'] .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+}
+
+.note-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  font-size: 0.95em;
+}
+
+.note-body th,
+.note-body td {
+  text-align: left;
+  padding: 0.55em 0.8em;
+  border-bottom: 1px solid var(--border);
+}
+
+.note-body th {
+  background: var(--bg-alt);
+  font-weight: 600;
+}
+
+.note-body tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Dataview rendered tables — wrap allows horizontal scroll on narrow
+   widths instead of breaking the layout. */
+.note-body .dataview-table-wrap {
+  overflow-x: auto;
+  margin: 1em 0;
+}
+.note-body .dataview-table-wrap table {
+  margin: 0;
+}
+.note-body .dataview-empty {
+  color: var(--text-faint);
+  font-style: italic;
+  text-align: center;
+}
+.note-body .dataview-error {
+  border: 1px solid var(--border);
+  border-left: 3px solid #c0392b;
+  background: var(--bg-alt);
+  padding: 0.75rem 1rem;
+  margin: 1em 0;
+  font-size: 0.9em;
+}
+.note-body .dataview-error pre {
+  margin-top: 0.5rem;
+  font-size: 0.85em;
+}
+
+.note-body ul,
+.note-body ol {
+  padding-left: 1.5em;
+  margin: 1em 0;
+}
+
+.note-body li + li {
+  margin-top: 0.25em;
+}
+
+.note-body hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+
+.note-body img {
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  margin: 1em auto;
+  max-width: 100%;
+  height: auto;
+}
+
+.note-body figure {
+  margin: 1em 0;
+  text-align: center;
+}
+
+.note-body figcaption {
+  margin-top: 0.5em;
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+/* Wikilinks */
+.note-body a.wiki {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  text-underline-offset: 0.2em;
+}
+
+.note-body a.wiki:hover {
+  color: var(--accent-hover);
+  text-decoration-color: var(--accent-hover);
+}
+
+.note-body a.wiki-unresolved {
+  color: var(--text-faint);
+  text-decoration: underline dashed;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  cursor: help;
+}
+
+.note-body a.evidence-embed {
+  display: inline-block;
+  padding: 0.5em 0.9em;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-alt);
+  text-decoration: none;
+  color: var(--text);
+}
+
+.note-body a.evidence-embed:hover {
+  border-color: var(--accent);
+}
+
+.heading-anchor {
+  margin-left: 0.4em;
+  opacity: 0;
+  color: var(--text-faint);
+  text-decoration: none;
+  font-weight: 400;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.note-body h1:hover .heading-anchor,
+.note-body h2:hover .heading-anchor,
+.note-body h3:hover .heading-anchor,
+.note-body h4:hover .heading-anchor {
+  opacity: 1;
+}
+
+.heading-anchor::before {
+  content: '#';
+}
+
+/* Callouts */
+.callout {
+  margin: 1.2em 0;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  padding: 0;
+  overflow: hidden;
+}
+
+.callout-title {
+  padding: 0.6em 1em;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--callout-color, var(--accent)) 12%, transparent);
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  list-style: none;
+}
+
+details.callout > .callout-title {
+  cursor: pointer;
+}
+
+details.callout[open] > .callout-title {
+  border-bottom: 1px solid var(--border);
+}
+
+.callout-body {
+  padding: 0.6em 1em;
+}
+
+.callout-body > :first-child { margin-top: 0; }
+.callout-body > :last-child { margin-bottom: 0; }
+
+.callout-note  { --callout-color: var(--color-info); }
+.callout-info  { --callout-color: var(--color-info); }
+.callout-tip   { --callout-color: var(--color-tip); }
+.callout-success { --callout-color: var(--color-success); }
+.callout-warning, .callout-warn { --callout-color: var(--color-warn); }
+.callout-danger, .callout-failure, .callout-error, .callout-bug { --callout-color: var(--color-danger); }
+.callout-quote, .callout-cite { --callout-color: var(--text-muted); }
+.callout-abstract, .callout-summary { --callout-color: var(--color-info); }
+.callout-example  { --callout-color: var(--color-tip); }
+.callout-question, .callout-help, .callout-faq { --callout-color: var(--color-warn); }

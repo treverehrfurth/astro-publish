@@ -1,0 +1,26 @@
+# Obsidian
+.obsidian/
+.trash/
+
+# Editor
+.claude/
+.DS_Store
+
+# Astro
+node_modules/
+dist/
+.astro/
+tsconfig.tsbuildinfo
+
+# Auto-copied evidence (rebuilt by the loader)
+public/_evidence/
+public/graph.json
+public/vault-index.json
+public/vault-assets.json
+
+# Pagefind output
+public/pagefind/
+
+# Env
+.env
+.env.local

@@ -1,0 +1,89 @@
+---
+// Hover popover for wikilinks. Loads /api/preview/<slug>.html lazily.
+---
+<div class="preview-popover" data-preview-host hidden></div>
+
+<script is:inline>
+  (function () {
+    const host = document.querySelector('[data-preview-host]');
+    if (!host) return;
+    let openSlug = null;
+    let timer = null;
+    const cache = new Map();
+
+    async function fetchPreview(slug) {
+      if (cache.has(slug)) return cache.get(slug);
+      try {
+        const r = await fetch('/api/preview/' + slug + '.html');
+        if (!r.ok) throw new Error(String(r.status));
+        const text = await r.text();
+        cache.set(slug, text);
+        return text;
+      } catch (e) {
+        const fallback = '<div class="preview-empty">Preview unavailable.</div>';
+        cache.set(slug, fallback);
+        return fallback;
+      }
+    }
+
+    function position(el, target) {
+      const rect = target.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const popW = 450;
+      const popH = Math.min(400, host.scrollHeight || 320);
+      let x = rect.left;
+      let y = rect.bottom + 8;
+      if (x + popW > vw - 12) x = vw - popW - 12;
+      if (y + popH > vh - 12) y = rect.top - popH - 8;
+      if (y < 12) y = 12;
+      el.style.left = Math.max(12, x) + 'px';
+      el.style.top = y + 'px';
+    }
+
+    function show(target) {
+      const slug = target.getAttribute('data-preview-slug');
+      if (!slug) return;
+      const resolved = target.getAttribute('data-resolved');
+      if (resolved === 'false') {
+        host.innerHTML = '<div class="preview-empty">Page does not exist yet.</div>';
+        host.hidden = false;
+        host.classList.add('open');
+        position(host, target);
+        openSlug = slug;
+        return;
+      }
+      fetchPreview(slug).then((html) => {
+        if (openSlug !== slug) return;
+        host.innerHTML = html;
+        host.hidden = false;
+        host.classList.add('open');
+        position(host, target);
+      });
+      openSlug = slug;
+    }
+
+    function hide() {
+      openSlug = null;
+      host.classList.remove('open');
+      const t = setTimeout(() => { if (!openSlug) { host.hidden = true; } }, 200);
+    }
+
+    document.addEventListener('mouseover', (ev) => {
+      const a = ev.target?.closest?.('a.wiki[data-preview-slug]');
+      if (!a) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => show(a), 250);
+    });
+
+    document.addEventListener('mouseout', (ev) => {
+      const a = ev.target?.closest?.('a.wiki[data-preview-slug]');
+      if (!a) return;
+      clearTimeout(timer);
+      timer = setTimeout(hide, 200);
+    });
+
+    host.addEventListener('mouseenter', () => { clearTimeout(timer); });
+    host.addEventListener('mouseleave', () => { clearTimeout(timer); timer = setTimeout(hide, 100); });
+  })();
+</script>

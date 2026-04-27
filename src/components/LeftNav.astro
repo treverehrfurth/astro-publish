@@ -1,0 +1,290 @@
+---
+import { getCollection } from 'astro:content';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import NavNode from './NavNode.astro';
+import SiteHeader from './SiteHeader.astro';
+import type { VaultIndexNode } from '@/lib/types';
+
+interface Props {
+  currentSlug: string;
+}
+const { currentSlug } = Astro.props as Props;
+
+const notes = await getCollection('notes');
+const sorted = [...notes].sort((a, b) => a.data.slug.localeCompare(b.data.slug));
+
+// Publishable evidence assets (images, PDFs) — written by the vault
+// loader during build. Empty list if the file isn't there yet.
+interface AssetEntry { vaultRel: string; publicUrl: string; filename: string; ext: string; }
+let assets: AssetEntry[] = [];
+try {
+  assets = JSON.parse(readFileSync(path.join(process.cwd(), 'public', 'vault-assets.json'), 'utf8'));
+} catch {
+  /* ignore — first build or no assets */
+}
+
+const root: VaultIndexNode = { name: '', slug: '', isFolder: true, title: 'Home', children: [] };
+
+function prettyFolder(name: string): string {
+  return name
+    .split('-')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+for (const n of sorted) {
+  if (!n.data.slug) continue;
+  const segs = n.data.slug.split('/');
+  let cursor = root;
+  for (let i = 0; i < segs.length - 1; i++) {
+    cursor.children = cursor.children ?? [];
+    let child = cursor.children.find((c) => c.isFolder && c.name === segs[i]);
+    if (!child) {
+      child = {
+        name: segs[i],
+        slug: segs.slice(0, i + 1).join('/'),
+        isFolder: true,
+        title: prettyFolder(segs[i]),
+        children: [],
+      };
+      cursor.children.push(child);
+    }
+    cursor = child;
+  }
+  cursor.children = cursor.children ?? [];
+  cursor.children.push({
+    name: segs[segs.length - 1],
+    slug: n.data.slug,
+    isFolder: false,
+    title: n.data.title,
+    noteType: n.data.noteType,
+    date: n.data.date,
+  });
+}
+
+// Merge in evidence assets as leaves under their parent folder. Their
+// `url` field overrides the default `/${slug}` href so the link goes
+// straight to the served file under `/_evidence/...`.
+for (const a of assets) {
+  const segs = a.vaultRel.split('/');
+  let cursor = root;
+  for (let i = 0; i < segs.length - 1; i++) {
+    cursor.children = cursor.children ?? [];
+    let child = cursor.children.find((c) => c.isFolder && c.name === segs[i]);
+    if (!child) {
+      child = {
+        name: segs[i],
+        slug: segs.slice(0, i + 1).join('/'),
+        isFolder: true,
+        title: prettyFolder(segs[i]),
+        children: [],
+      };
+      cursor.children.push(child);
+    }
+    cursor = child;
+  }
+  cursor.children = cursor.children ?? [];
+  // Display title without the file extension (cleaner in the nav).
+  const titleNoExt = a.filename.replace(/\.[^.]+$/, '');
+  cursor.children.push({
+    name: a.filename,
+    slug: null,
+    isFolder: false,
+    title: titleNoExt,
+    url: a.publicUrl,
+  });
+}
+
+function mergeCollapsed(node: VaultIndexNode) {
+  if (!node.children) return;
+  for (let i = node.children.length - 1; i >= 0; i--) {
+    const leaf = node.children[i];
+    if (leaf.isFolder) continue;
+    const folder = node.children.find((c) => c.isFolder && c.slug === leaf.slug);
+    if (folder) {
+      folder.title = leaf.title;
+      (folder as any).hasPage = true;
+      (folder as any).noteType = leaf.noteType;
+      node.children.splice(i, 1);
+    }
+  }
+  for (const c of node.children) if (c.isFolder) mergeCollapsed(c);
+}
+mergeCollapsed(root);
+
+// If a leaf has no `date` frontmatter, fall back to a `YYYY-MM-DD` prefix
+// in its title (the project's evidence files are named that way). Lets
+// us sort siblings consistently by date even when only some have an
+// explicit `date:` in frontmatter.
+function leafSortKey(l: VaultIndexNode): string | null {
+  if (l.date) return l.date;
+  const m = l.title.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
+function sortTree(node: VaultIndexNode) {
+  if (!node.children) return;
+  const folders = node.children.filter((c) => c.isFolder).sort((a, b) => a.title.localeCompare(b.title));
+  const leaves = node.children.filter((c) => !c.isFolder);
+  const allDated = leaves.length > 0 && leaves.every((l) => !!leafSortKey(l));
+  if (allDated) {
+    leaves.sort((a, b) => (leafSortKey(b) ?? '').localeCompare(leafSortKey(a) ?? ''));
+  } else {
+    leaves.sort((a, b) => a.title.localeCompare(b.title));
+  }
+  node.children = [...folders, ...leaves];
+  for (const f of folders) sortTree(f);
+}
+sortTree(root);
+---
+
+<nav class="app-nav" aria-label="Vault navigation" transition:persist="left-nav">
+  <SiteHeader />
+
+  <div class="nav-tree">
+    <ul>
+      <li class="nav-leaf">
+        <a href="/" aria-current={currentSlug === '' ? 'page' : undefined}>Home</a>
+      </li>
+      {(root.children ?? []).map((child) => <NavNode node={child} currentSlug={currentSlug} />)}
+    </ul>
+  </div>
+</nav>
+
+<script is:inline>
+  // Persisted folder open/close state. Runs once at load; the toggle
+  // listeners survive view transitions because the nav is persisted.
+  (function () {
+    if (window.__navInitDone) return;
+    window.__navInitDone = true;
+
+    const KEY = 'nav-folder-state';
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch {}
+    document.querySelectorAll('details.nav-folder[data-folder-slug]').forEach((el) => {
+      const slug = el.getAttribute('data-folder-slug') || '';
+      if (slug in saved) {
+        if (saved[slug]) el.setAttribute('open', ''); else el.removeAttribute('open');
+      }
+      el.addEventListener('toggle', () => {
+        saved[slug] = el.hasAttribute('open');
+        try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch {}
+      });
+    });
+
+    // Mobile slide-out panels (left = directory nav, right = contents
+    // rail). Document-level delegation so it works no matter when the
+    // topbar buttons are parsed and survives view-transition swaps.
+    function panel(side) {
+      return document.querySelector(side === 'left' ? '.app-nav' : '.app-rail');
+    }
+    function setPanelOpen(side, open) {
+      const el = panel(side);
+      if (!el) return;
+      // Closing one always closes both; opening one closes the other.
+      const other = side === 'left' ? 'right' : 'left';
+      const otherEl = panel(other);
+      if (open && otherEl) otherEl.setAttribute('data-open', 'false');
+      el.setAttribute('data-open', open ? 'true' : 'false');
+      const anyOpen = open || (otherEl && otherEl.getAttribute('data-open') === 'true');
+      const backdrop = document.querySelector('[data-nav-backdrop]');
+      if (backdrop) backdrop.setAttribute('data-open', anyOpen ? 'true' : 'false');
+      document.body.classList.toggle('nav-open', !!anyOpen);
+    }
+    function closeBoth() {
+      setPanelOpen('left', false);
+      setPanelOpen('right', false);
+    }
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      if (!target || !target.closest) return;
+      if (target.closest('[data-mobile-nav-toggle]')) {
+        e.preventDefault();
+        const el = panel('left');
+        setPanelOpen('left', el?.getAttribute('data-open') !== 'true');
+        return;
+      }
+      if (target.closest('[data-mobile-rail-toggle]')) {
+        e.preventDefault();
+        const el = panel('right');
+        setPanelOpen('right', el?.getAttribute('data-open') !== 'true');
+        return;
+      }
+      if (target.closest('[data-nav-backdrop]')) {
+        closeBoth();
+        return;
+      }
+      // Auto-close after tapping a link inside either panel on narrow
+      // screens (the panel is in the way of the article we just opened).
+      const link = target.closest('a[href]');
+      if (link && window.matchMedia('(max-width: 1100px)').matches) {
+        if (link.closest('.app-nav') || link.closest('.app-rail')) {
+          closeBoth();
+        }
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeBoth();
+    });
+
+    // Suppress panel transitions during active window resize to avoid
+    // the rail/nav animating between desktop and mobile layouts as the
+    // breakpoints flip (which produces visible ghosting under the
+    // topbar's backdrop blur).
+    let resizeIdleTimer;
+    window.addEventListener('resize', () => {
+      document.body.classList.add('is-resizing');
+      clearTimeout(resizeIdleTimer);
+      resizeIdleTimer = setTimeout(() => {
+        document.body.classList.remove('is-resizing');
+      }, 120);
+    });
+
+    // Theme slider aria-checked sync
+    const themeBtn = document.querySelector('[data-theme-toggle]');
+    if (themeBtn) {
+      const syncAria = () => {
+        const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+        themeBtn.setAttribute('aria-checked', cur === 'light' ? 'true' : 'false');
+      };
+      syncAria();
+      new MutationObserver(syncAria).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme'],
+      });
+    }
+  })();
+
+  // After every view-transition swap, refresh the active state on the
+  // nav. The nav DOM is persisted across navigations (transition:persist),
+  // so its aria-current and data-active attributes won't update on their
+  // own — derive them from the new URL.
+  if (!window.__navListenersAttached) {
+    window.__navListenersAttached = true;
+    const syncNavActive = () => {
+      const path = location.pathname.replace(/\/$/, '');
+      const slug = path.replace(/^\//, '');
+      document.querySelectorAll('.app-nav a[href]').forEach((a) => {
+        const href = a.getAttribute('href') || '';
+        const linkSlug = href.replace(/^\//, '').replace(/\/$/, '');
+        const match = linkSlug === slug || (linkSlug === '' && slug === '');
+        if (match) a.setAttribute('aria-current', 'page');
+        else a.removeAttribute('aria-current');
+      });
+      document.querySelectorAll('details.nav-folder[data-folder-slug]').forEach((el) => {
+        const fslug = el.getAttribute('data-folder-slug') || '';
+        const isAncestor = fslug && (slug === fslug || slug.startsWith(fslug + '/'));
+        const summary = el.querySelector(':scope > summary');
+        if (summary) summary.setAttribute('data-active', String(!!isAncestor));
+        // Auto-open the ancestor folder so the active leaf is visible
+        // when navigating to a different section. (Doesn't override the
+        // user's explicit collapse since the localStorage state is also
+        // honoured at first paint.)
+        if (isAncestor) el.setAttribute('open', '');
+      });
+    };
+    document.addEventListener('astro:after-swap', syncNavActive);
+    document.addEventListener('astro:page-load', syncNavActive);
+  }
+</script>

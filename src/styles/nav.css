@@ -1,0 +1,270 @@
+/* ─── Header at the top of the left nav ─────────────────────────── */
+
+.nav-header {
+  /* Top padding matches `.note-shell`'s 2.5rem. With the explicit `.note-title`
+     style (font-size 2.4em, line-height 1.15, margin-top 0), the article H1's
+     visual cap-top sits ~3px below the padding edge — so the nav title's
+     cap-top lines up with the article H1's cap-top. */
+  padding: 2.5rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.nav-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+.nav-title:hover { color: var(--text); }
+
+/* ─── Theme slider (Obsidian Publish style) ─────────────────────── */
+
+.theme-slider {
+  align-self: flex-start;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.theme-slider-track {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border: 1px solid var(--border);
+  transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
+}
+
+.theme-slider-icon {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: opacity var(--dur-2) var(--ease);
+}
+.theme-slider-icon.icon-moon { left: 6px; }
+.theme-slider-icon.icon-sun  { right: 6px; }
+
+.theme-slider-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
+}
+
+:root[data-theme='dark']  .theme-slider-thumb { transform: translateX(24px); }
+:root[data-theme='light'] .theme-slider-thumb { transform: translateX(0); background: #f5f0d2; }
+
+:root[data-theme='dark']  .theme-slider-icon.icon-moon { opacity: 1; color: var(--text); }
+:root[data-theme='dark']  .theme-slider-icon.icon-sun  { opacity: 0; }
+:root[data-theme='light'] .theme-slider-icon.icon-moon { opacity: 0; }
+:root[data-theme='light'] .theme-slider-icon.icon-sun  { opacity: 1; color: var(--text); }
+
+.theme-slider:hover .theme-slider-track { border-color: var(--border-strong); }
+
+/* ─── Search box ─────────────────────────────────────────────────── */
+
+.nav-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+.nav-search:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.nav-search-label { flex: 1; text-align: left; }
+.nav-search-kbd {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0 0.35em;
+  font-size: 0.85em;
+}
+
+/* ─── File tree ─────────────────────────────────────────────────── */
+
+.nav-tree {
+  padding: 0.4rem 0.5rem 1.5rem;
+  font-size: 14px;
+  user-select: none;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Hide the scrollbar chrome so it doesn't flash during view-transition
+     swaps. Trackpad / wheel / keyboard scrolling still work. */
+  scrollbar-width: none;
+}
+.nav-tree::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.nav-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-folder { margin: 0; }
+
+.nav-folder summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.5rem;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 600;
+  border-radius: var(--r-sm);
+  list-style: none;
+  line-height: 1.35;
+}
+.nav-folder summary::-webkit-details-marker { display: none; }
+.nav-folder summary::marker { display: none; }
+.nav-folder summary:hover { color: var(--text); }
+
+/* Chevrons: dimmer than the surrounding text, like Obsidian Publish.
+   Color is set explicitly here so it doesn't inherit from the summary's
+   text color. Using SVG `color: ...` to drive `stroke="currentColor"`. */
+.nav-chevron {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: transform var(--dur-1) var(--ease);
+}
+.nav-folder[open] > summary .nav-chevron { transform: rotate(90deg); }
+/* Even when the folder is an ancestor of the current page, chevron stays neutral. */
+
+.nav-folder-link,
+.nav-folder-label {
+  color: inherit;
+  text-decoration: none;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Folder summaries DO NOT change color when ancestor of the current page —
+   only the active leaf is purple. The folder-link itself can pick up the
+   accent if it IS the current page (e.g. /projects when sitting on the
+   folder's index.md), but ancestor folders stay neutral. */
+.nav-folder-link[aria-current='page'] {
+  color: var(--accent);
+}
+
+/* Top-level leaves (Home) — no left guide line */
+.nav-tree > ul > .nav-leaf > a {
+  display: block;
+  padding: 0.45rem 0.5rem;
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
+}
+.nav-tree > ul > .nav-leaf > a:hover { color: var(--text); }
+.nav-tree > ul > .nav-leaf > a[aria-current='page'] { color: var(--accent); }
+
+/* ── Nested children (inside an expanded folder) ─────────────────
+   Single-line behaviour: only ONE vertical guide line is ever visible
+   at a time — the line for the *deepest* currently-expanded children
+   list. Outer guide lines are suppressed in any branch that contains a
+   further-expanded folder, so we never stack parallel guides. */
+
+.nav-folder > ul {
+  margin-left: 0.875rem;
+  padding-left: 0;
+}
+
+/* Container border on every nested children-list. The :has() rule
+   below suppresses outer borders when a deeper one is active. */
+.nav-folder > ul .nav-folder > ul {
+  border-left: 1px solid var(--border);
+}
+
+/* Suppress an outer container's border when any direct-child folder is
+   open: the inner expansion's own line takes over. */
+.nav-folder > ul .nav-folder > ul:has(> .nav-folder-item > details[open]) {
+  border-left-color: transparent;
+}
+
+/* Leaves: their own per-row border so the line continues across leaf
+   rows even at depths where the container border isn't drawn. */
+.nav-folder > ul > .nav-leaf > a {
+  display: block;
+  margin-left: -1px;
+  border-left: 1px solid var(--border);
+  padding: 0.42rem 0.5rem 0.42rem 1rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 400;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--dur-1) var(--ease), border-left-color var(--dur-1) var(--ease);
+}
+
+.nav-folder > ul > .nav-leaf > a:hover {
+  color: var(--text);
+  border-left-color: var(--text-muted);
+}
+
+.nav-folder > ul > .nav-leaf > a[aria-current='page'] {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 500;
+}
+
+/* If the containing <ul> has been "demoted" by the :has() rule (because
+   an inner folder is expanded), suppress per-leaf borders too — the
+   inner expansion's own line is the only one we want visible. */
+.nav-folder > ul:has(> .nav-folder-item > details[open]) > .nav-leaf > a {
+  border-left-color: transparent;
+}
+.nav-folder > ul:has(> .nav-folder-item > details[open]) > .nav-leaf > a[aria-current='page'] {
+  border-left-color: var(--accent);
+}
+
+/* Folder summaries inside a children list: transparent slot so the
+   column position is preserved through folder rows. */
+.nav-folder > ul > .nav-folder-item > details > summary {
+  margin-left: -1px;
+  border-left: 1px solid transparent;
+}

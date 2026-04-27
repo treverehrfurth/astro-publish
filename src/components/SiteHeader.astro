@@ -1,0 +1,43 @@
+---
+// Header that lives at the TOP of the LEFT NAV (not a global top bar):
+//   - site title
+//   - theme slider (sun/moon)
+//   - search box that opens the Cmd+K palette
+interface Props {
+  siteTitle?: string;
+}
+const { siteTitle = process.env.SITE_TITLE ?? 'My Vault' } = Astro.props as Props;
+---
+
+<div class="nav-header">
+  <a href="/" class="nav-title">{siteTitle}</a>
+
+  <button class="theme-slider" type="button" data-theme-toggle aria-label="Toggle theme" role="switch" aria-checked="false">
+    <span class="theme-slider-track">
+      <svg class="theme-slider-icon icon-moon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12.5 9.5a5 5 0 0 1-6-6 5.5 5.5 0 1 0 6 6Z" />
+      </svg>
+      <svg class="theme-slider-icon icon-sun" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+        <circle cx="8" cy="8" r="2.6" />
+        <line x1="8" y1="2" x2="8" y2="3.4" />
+        <line x1="8" y1="12.6" x2="8" y2="14" />
+        <line x1="2" y1="8" x2="3.4" y2="8" />
+        <line x1="12.6" y1="8" x2="14" y2="8" />
+        <line x1="3.6" y1="3.6" x2="4.6" y2="4.6" />
+        <line x1="11.4" y1="11.4" x2="12.4" y2="12.4" />
+        <line x1="3.6" y1="12.4" x2="4.6" y2="11.4" />
+        <line x1="11.4" y1="4.6" x2="12.4" y2="3.6" />
+      </svg>
+      <span class="theme-slider-thumb"></span>
+    </span>
+  </button>
+
+  <button class="nav-search" type="button" data-search-trigger aria-label="Search">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <circle cx="7" cy="7" r="4.5" />
+      <line x1="10.5" y1="10.5" x2="14" y2="14" />
+    </svg>
+    <span class="nav-search-label">Search…</span>
+    <kbd class="nav-search-kbd" data-search-kbd>⌘K</kbd>
+  </button>
+</div>

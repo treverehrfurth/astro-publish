@@ -1,0 +1,55 @@
+---
+import type { VaultIndexNode } from '@/lib/types';
+
+interface Props {
+  node: VaultIndexNode & { hasPage?: boolean };
+  currentSlug: string;
+}
+const { node, currentSlug } = Astro.props as Props;
+
+function isAncestor(folderSlug: string | null, current: string): boolean {
+  if (folderSlug == null) return false;
+  if (!folderSlug) return true;
+  return current === folderSlug || current.startsWith(folderSlug + '/');
+}
+
+const ancestor = node.isFolder && isAncestor(node.slug, currentSlug);
+const isCurrent = node.slug === currentSlug;
+
+// Strip a leading `YYYY-MM-DD - ` (or `YYYY-MM-DD `) from leaf labels —
+// the list is already sorted by date so the prefix just eats horizontal
+// space. Frontmatter title and page H1 are unaffected.
+const displayTitle = node.isFolder
+  ? node.title
+  : (node.title.replace(/^\d{4}-\d{2}-\d{2}\s*[-–—]?\s*/, '').trim() || node.title);
+
+import Self from './NavNode.astro';
+---
+
+{node.isFolder ? (
+  <li class="nav-folder-item">
+    <details class="nav-folder" data-folder-slug={node.slug ?? ''} open={ancestor}>
+      <summary data-active={ancestor}>
+        <svg class="nav-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M4 2.5 L8 6 L4 9.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        {node.hasPage && node.slug ? (
+          <a href={`/${node.slug}`} class="nav-folder-link" aria-current={isCurrent ? 'page' : undefined}>{displayTitle}</a>
+        ) : (
+          <span class="nav-folder-label">{displayTitle}</span>
+        )}
+      </summary>
+      {node.children && node.children.length > 0 && (
+        <ul>
+          {node.children.map((child) => <Self node={child} currentSlug={currentSlug} />)}
+        </ul>
+      )}
+    </details>
+  </li>
+) : (
+  <li class="nav-leaf">
+    <a href={node.url ?? (node.slug ? '/' + node.slug : '/')} aria-current={isCurrent ? 'page' : undefined} title={node.title} target={node.url ? '_blank' : undefined} rel={node.url ? 'noopener' : undefined}>
+      {displayTitle}
+    </a>
+  </li>
+)}

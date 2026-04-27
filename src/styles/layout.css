@@ -1,0 +1,279 @@
+.app {
+  display: grid;
+  grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--rail-width);
+  grid-template-areas: 'nav main rail';
+  min-height: 100vh;
+}
+
+.app-nav {
+  grid-area: nav;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  scrollbar-width: none;
+}
+.app-nav::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+.app-main {
+  grid-area: main;
+  min-width: 0;
+}
+
+.note-shell {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 2.5rem 3rem 6rem;
+}
+
+.app-rail {
+  grid-area: rail;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  /* Match `.note-shell` and `.nav-header` top padding so the rail's first
+     label sits at the same vertical position as the article H1 cap. */
+  padding: 2.65rem 1rem 1.5rem;
+  scrollbar-width: none;
+}
+.app-rail::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* Header block (title + meta + tags) gets a divider below to separate
+   it from the article body. */
+.note-header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Note metadata block under H1 */
+.note-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.9em;
+  color: var(--text-muted);
+  margin: -0.5rem 0 1.5rem;
+}
+
+.note-meta dt {
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-faint);
+}
+
+.note-meta dd {
+  margin: 0 0 0 0.4rem;
+}
+
+.note-meta-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Tag pills */
+.tag-pill {
+  display: inline-block;
+  padding: 0.1em 0.6em;
+  font-size: 0.85em;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.tag-pill:hover {
+  background: var(--accent-soft-2);
+  color: var(--accent-hover);
+}
+
+/* ─── Mobile / tablet topbar ───────────────────────────────────────
+   Persistent header at narrow widths with two buttons: hamburger on
+   the LEFT opens the directory nav, list-icon on the RIGHT opens the
+   contents (TOC) rail. Title in the middle returns to home. */
+.mobile-topbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  height: 52px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  padding: 0 0.5rem;
+  gap: 0.25rem;
+}
+
+.topbar-title {
+  flex: 1;
+  text-align: center;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+.topbar-title:hover { color: var(--text); }
+
+.topbar-btn {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  border-radius: var(--r-md);
+  flex-shrink: 0;
+  /* Force its own compositing layer so the icon doesn't smear into
+     the topbar's backdrop blur as the button's x-position shifts
+     during a rapid window resize. */
+  transform: translateZ(0);
+  transition: background var(--dur-1) var(--ease);
+}
+.topbar-btn:hover { background: var(--bg-alt); }
+.topbar-btn:active { transform: translateZ(0) scale(0.92); }
+
+/* Tappable backdrop behind the slide-out panels. */
+.nav-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  z-index: 50;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms var(--ease);
+}
+.nav-backdrop[data-open='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ─── Tablet (≤1100px): right rail becomes a slide-out from the right.
+       Left nav is still permanent at this width. ───────────────────── */
+@media (max-width: 1100px) {
+  :root { --rail-width: 0px; }
+  .app {
+    grid-template-columns: var(--nav-width) minmax(0, 1fr);
+    grid-template-areas: 'nav main';
+  }
+  .mobile-topbar { display: flex; }
+  /* Topbar adds 52px above .app; reclaim that from the app's min-height
+     so the page doesn't gain extra scroll on phones. */
+  .app { min-height: calc(100vh - 52px); }
+  /* The left nav is sticky to the top of the viewport, but the topbar
+     is also sticky at top:0 — so anchor the nav below the topbar and
+     trim its height to the remaining viewport so the nav header isn't
+     hidden behind the topbar. */
+  .app-nav {
+    top: 52px;
+    height: calc(100vh - 52px);
+  }
+  /* When the topbar is showing, anchor jumps (TOC links, heading
+     anchors) need to stop below the topbar instead of scrolling the
+     target heading underneath it. */
+  html { scroll-padding-top: 60px; }
+
+  .app-rail {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 88vw;
+    max-width: 340px;
+    height: 100vh;
+    z-index: 55;
+    border-left: 1px solid var(--border);
+    border-right: 0;
+    box-shadow: -4px 0 28px rgba(0, 0, 0, 0.35);
+    transform: translateX(100%);
+    transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform;
+    padding: 1.25rem 1rem 1.5rem;
+  }
+  .app-rail[data-open='true'] { transform: translateX(0); }
+
+  /* Hamburger only matters when the directory is hidden — at tablet
+     widths the directory is permanent, so leave a balanced empty slot
+     for centering the title. */
+  .topbar-btn-left { visibility: hidden; }
+}
+
+/* ─── Phone (≤720px): directory nav also slides out from the left. ── */
+@media (max-width: 720px) {
+  :root { --nav-width: 0px; }
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'main';
+  }
+  .app-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 88vw;
+    max-width: 320px;
+    height: 100vh;
+    z-index: 55;
+    border-right: 1px solid var(--border);
+    box-shadow: 4px 0 28px rgba(0, 0, 0, 0.35);
+    transform: translateX(-100%);
+    transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform;
+  }
+  .app-nav[data-open='true'] { transform: translateX(0); }
+  .topbar-btn-left { visibility: visible; }
+
+  /* Tighten the article shell and typography for narrow screens. */
+  .note-shell {
+    padding: 1.25rem 1.1rem 4rem;
+  }
+  .note-title {
+    font-size: 1.95rem;
+    line-height: 1.2;
+  }
+  .note-body { font-size: 1rem; }
+  .note-body h2 { font-size: 1.4rem; }
+  .note-body h3 { font-size: 1.15rem; }
+  /* Long horizontal content that would otherwise overflow a phone. */
+  .note-body pre,
+  .note-body .dataview-table-wrap {
+    margin-left: -1.1rem;
+    margin-right: -1.1rem;
+    padding-left: 1.1rem;
+    padding-right: 1.1rem;
+    border-radius: 0;
+  }
+}
+
+/* Anyone who prefers reduced motion gets instant transitions. */
+@media (prefers-reduced-motion: reduce) {
+  .app-nav,
+  .app-rail,
+  .nav-backdrop {
+    transition: none !important;
+  }
+}
+
+/* While the user is actively resizing the viewport, suppress the
+   slide-out transitions on the panels — without this, the rail's
+   `translateX` animates between its in-grid and off-screen positions as
+   the breakpoints flip, which combined with the topbar's backdrop blur
+   produces visible smear/ghosting. JS toggles this class on `resize`. */
+body.is-resizing .app-nav,
+body.is-resizing .app-rail,
+body.is-resizing .nav-backdrop {
+  transition: none !important;
+}

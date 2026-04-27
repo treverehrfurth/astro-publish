@@ -1,0 +1,177 @@
+.rail-section {
+  margin-bottom: 1.5rem;
+}
+
+.rail-section h2 {
+  font-size: 0.78em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin: 0 0 0.5rem;
+  padding: 0 0.25rem;
+}
+
+/* ─── On this page (TOC) ─────────────────────────────────────────
+   Dynamic scroll-spy TOC: nested headings collapse by default and
+   expand when the active section (or one of its ancestors) is scrolled
+   into view. Visual style mirrors the left nav: a subtle gray guide
+   line that turns accent on the active leaf. */
+
+.toc {
+  font-size: 0.9em;
+  line-height: 1.35;
+}
+
+.toc .toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.toc .toc-item { margin: 0; }
+
+.toc .toc-link {
+  display: block;
+  position: relative;
+  padding: 0.32rem 0.5rem 0.32rem 0.75rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--dur-1) var(--ease);
+}
+
+/* Per-link bar at the link's left edge. Because nested lists add no
+   horizontal padding (depth is expressed by per-depth link padding-left
+   below), every link's left edge sits at the same x — so these stacked
+   bars read as one continuous guide. The active link's bar swaps to
+   the accent color. */
+.toc .toc-link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+/* Per-depth indent on the link itself so deeper headings shift further
+   right while every link's left edge still sits at the outer guide. */
+.toc .depth-2 > .toc-link { padding-left: 0.75rem; }
+.toc .depth-3 > .toc-link { padding-left: 1.5rem; }
+.toc .depth-4 > .toc-link { padding-left: 2.25rem; }
+.toc .depth-5 > .toc-link { padding-left: 3rem; }
+.toc .depth-6 > .toc-link { padding-left: 3.75rem; }
+
+.toc .toc-link:hover { color: var(--text); }
+
+.toc .toc-link.is-active {
+  color: var(--accent);
+  font-weight: 500;
+}
+.toc .toc-link.is-active::before { background: var(--accent); }
+
+/* Collapse / expand. The grid-rows trick animates 0fr ↔ 1fr cleanly
+   without needing a fixed max-height. */
+.toc .toc-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s var(--ease);
+}
+.toc .toc-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+.toc .toc-item.is-active > .toc-collapse,
+.toc .toc-item.has-active-descendant > .toc-collapse {
+  grid-template-rows: 1fr;
+}
+
+.backlinks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.9em;
+}
+
+.backlinks-list li {
+  margin: 0.25em 0;
+}
+
+.backlinks-list a {
+  color: var(--text-muted);
+  text-decoration: none;
+  display: block;
+  padding: 0.2em 0.5rem;
+  border-radius: var(--r-sm);
+}
+
+.backlinks-list a:hover {
+  color: var(--accent);
+  background: var(--hover-bg);
+}
+
+.graph-widget {
+  height: 260px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-alt);
+  position: relative;
+  overflow: hidden;
+}
+
+.graph-widget canvas,
+.graph-widget svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.graph-expand {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75em;
+  color: var(--text-muted);
+  cursor: pointer;
+  z-index: 2;
+}
+.graph-expand:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Backlinks block under content */
+.backlinks-block {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.backlinks-block h2 {
+  font-size: 1em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin: 0 0 0.75rem;
+}
+
+.backlinks-block .backlinks-list a {
+  font-size: 1em;
+  color: var(--text);
+}
+
+.backlinks-block .backlink-snippet {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin: 0.1em 0 0.5em 0.5rem;
+}
