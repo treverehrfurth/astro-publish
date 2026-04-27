@@ -6,7 +6,7 @@ import sitemap from '@astrojs/sitemap';
 // The fallback below is a placeholder used only for sitemap and OG meta
 // generation when SITE_URL is unset; replace it before deploying.
 export default defineConfig({
-  site: process.env.SITE_URL ?? 'https://example.com',
+  site: process.env.SITE_URL ?? 'https://astro-publish.trever.cloud',
   integrations: [mdx(), sitemap()],
   markdown: {
     syntaxHighlight: false,

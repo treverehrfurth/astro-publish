@@ -17,6 +17,7 @@
 </p>
 
 <p align="center">
+  <a href="https://astro-publish.trever.cloud"><strong>Live demo →</strong></a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="docs/deployment.md">Deploy</a> ·
   <a href="docs/authoring.md">Author</a> ·
@@ -24,6 +25,7 @@
 </p>
 
 <p align="center">
+  <a href="https://astro-publish.trever.cloud"><img alt="Live demo" src="https://img.shields.io/badge/demo-astro--publish.trever.cloud-2ea44f?logo=cloudflare&logoColor=white"></a>
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue.svg">
   <img alt="Built with Astro" src="https://img.shields.io/badge/built%20with-Astro-ff5d01.svg">
   <img alt="Hosting cost" src="https://img.shields.io/badge/hosting-%240%2Fmo-brightgreen.svg">
@@ -97,6 +99,8 @@ Want it private? Optional email-based access control via **Cloudflare Access** g
 ---
 
 ## Quick start
+
+> Want to see it first? Browse the **[live demo](https://astro-publish.trever.cloud)** — it's this repo, deployed to Cloudflare Pages, with the sample vault.
 
 ```bash
 # Use this repo as a GitHub template, or:
