@@ -1,7 +1,7 @@
 ---
 // Minimal Cmd+K palette wired to Pagefind (loaded lazily on first open).
 ---
-<dialog class="search-dialog" data-search-dialog>
+<dialog class="search-dialog" data-search-dialog transition:persist="search-dialog">
   <div class="search-panel">
     <div class="search-input-wrap">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
@@ -18,7 +18,14 @@
 </dialog>
 
 <script is:inline>
+  // The dialog persists across view transitions (transition:persist on the
+  // <dialog>), and so does the trigger button (it lives inside .app-nav).
+  // This script re-executes after every page swap, so guard it to attach
+  // listeners exactly once — otherwise duplicate handlers stack up and the
+  // captured DOM references go stale.
   (function () {
+    if (window.__searchAttached) return;
+    window.__searchAttached = true;
     const dialog = document.querySelector('[data-search-dialog]');
     const input = document.querySelector('[data-search-input]');
     const results = document.querySelector('[data-search-results]');
