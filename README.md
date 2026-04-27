@@ -113,9 +113,9 @@ Want it private? Optional email-based access control via **Cloudflare Access** g
 
 ```bash
 # Use this repo as a GitHub template, or:
-npm create astro@latest -- --template <owner>/astro-vault-template
+npm create astro@latest -- --template <owner>/astro-publish
 
-cd astro-vault-template
+cd astro-publish
 npm install
 npm run dev      # preview at http://localhost:4321/
 npm run build    # static build into dist/, plus Pagefind search index
