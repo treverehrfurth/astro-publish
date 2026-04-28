@@ -90,7 +90,7 @@ const evidence = data.evidence ?? [];
             }
             return (
               <li style="margin: .25em 0;">
-                <a href={ev.href} class="wiki-evidence" style="color: var(--text);">{ev.label}</a>
+                <a href={ev.href} class="wiki-evidence" target="_blank" rel="noopener" style="color: var(--text);">{ev.label}</a>
                 <span style="margin-left: .5em; font-size: .8em; color: var(--text-faint); text-transform: uppercase;">{ev.kind}</span>
               </li>
             );

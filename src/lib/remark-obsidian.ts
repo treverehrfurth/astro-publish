@@ -56,11 +56,17 @@ export const remarkWikilinks: Plugin<[WikiLinkContext], Root> = (ctx) => {
             continue;
           }
           // Non-image embed: render as a styled link (e.g. PDF view card).
+          // Open in a new tab so the reader keeps their place in the note.
           newChildren.push({
             type: 'link',
             url: link.href,
             data: {
-              hProperties: { className: ['wiki', 'evidence-embed'], 'data-kind': ext.slice(1) },
+              hProperties: {
+                className: ['wiki', 'evidence-embed'],
+                'data-kind': ext.slice(1),
+                target: '_blank',
+                rel: 'noopener',
+              },
             },
             children: [{ type: 'text', value: link.caption ?? link.target }],
           } as Link);
@@ -69,6 +75,8 @@ export const remarkWikilinks: Plugin<[WikiLinkContext], Root> = (ctx) => {
         }
 
         // Bare wikilink (or unresolved embed): render as plain `wiki` link.
+        // Note links stay same-tab; non-note (asset/evidence) links open in
+        // a new tab so the reader keeps their place.
         const resolved = !!link.href;
         const display = link.caption ?? link.target;
         const linkNode: Link = {
@@ -83,7 +91,7 @@ export const remarkWikilinks: Plugin<[WikiLinkContext], Root> = (ctx) => {
                 : ['wiki', 'wiki-evidence'],
               'data-resolved': String(resolved),
               ...(link.isNote && link.targetSlug ? { 'data-preview-slug': link.targetSlug } : {}),
-              ...(link.isNote ? {} : { 'data-evidence': 'true' }),
+              ...(link.isNote ? {} : { 'data-evidence': 'true', target: '_blank', rel: 'noopener' }),
             },
           },
         };
