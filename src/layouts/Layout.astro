@@ -22,12 +22,12 @@ interface Props {
 }
 
 const {
-  title = process.env.SITE_TITLE ?? 'My Vault',
+  title = process.env.SITE_TITLE ?? 'Astro Publish',
   description = process.env.SITE_DESCRIPTION ?? 'A static site published from an Obsidian vault, built with Astro and styled to closely resemble Obsidian Publish.',
   currentSlug = '',
 } = Astro.props as Props;
 
-const siteTitle = process.env.SITE_TITLE ?? 'My Vault';
+const siteTitle = process.env.SITE_TITLE ?? 'Astro Publish';
 const fullTitle = title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
 
 // Absolute URLs for social-share previews. `Astro.site` comes from

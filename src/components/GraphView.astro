@@ -14,7 +14,7 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
 <script type="application/json" id="graph-colors-config" set:html={graphColorsJson}></script>
 
 <script>
-  import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide, forceX, forceY } from 'd3-force';
+  import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide, forceX, forceY, forceRadial } from 'd3-force';
   import { zoom, zoomIdentity, type ZoomBehavior } from 'd3-zoom';
   import { select, pointer } from 'd3-selection';
 
@@ -70,8 +70,8 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
     const text = getCSSVar('--text-muted') || '#999';
     const edgeColor = getCSSVar('--border') || '#363636';
 
-    let nodes = data.nodes;
-    let edges = data.edges;
+    let sourceNodes = data.nodes;
+    let sourceEdges = data.edges;
 
     if (mode === 'local' && centerSlug != null) {
       const keep = new Set<string>([centerSlug]);
@@ -81,16 +81,24 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
         if (s === centerSlug) keep.add(t);
         if (t === centerSlug) keep.add(s);
       }
-      nodes = data.nodes.filter((n) => keep.has(n.id));
-      edges = data.edges.filter((e) => {
+      sourceNodes = data.nodes.filter((n) => keep.has(n.id));
+      sourceEdges = data.edges.filter((e) => {
         const s = typeof e.source === 'string' ? e.source : e.source.id;
         const t = typeof e.target === 'string' ? e.target : e.target.id;
         return keep.has(s) && keep.has(t);
       });
     }
 
+    // Clone nodes so this simulation's mutations don't bleed into other
+    // simulations sharing the same cached graph data (e.g. opening the
+    // modal global graph would otherwise leave stale x/y on every node
+    // that the rail-side local sim then inherits when you navigate, and
+    // the local layout starts overlapping after a few page clicks).
+    const nodes: GraphNode[] = sourceNodes.map((n) => ({ id: n.id, title: n.title, group: n.group }));
+
     // Map edge source/target strings to node refs (d3-force will mutate to objects)
     const byId = new Map(nodes.map((n) => [n.id, n]));
+    const edges = sourceEdges;
     const linkData = edges
       .map((e) => {
         const s = byId.get(typeof e.source === 'string' ? e.source : e.source.id);
@@ -99,6 +107,22 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
         return { source: s, target: t };
       })
       .filter(Boolean) as Array<{ source: GraphNode; target: GraphNode }>;
+
+    // In local mode, pin the current-page node at the canvas center
+    // (Obsidian-style) so the neighborhood orbits around it instead of
+    // the center node drifting somewhere off-canvas in the small rail
+    // viewport. resize() updates the pin position when the host resizes.
+    const centerNode = mode === 'local' && centerSlug
+      ? nodes.find((n) => n.id === centerSlug) ?? null
+      : null;
+
+    // Radial layout target. Actual seeding of neighbor positions happens
+    // inside resize() once we know the canvas dimensions — seeding here
+    // (around 0,0) and then translating to canvas center inside resize
+    // would let the simulation tick a few times with neighbors far from
+    // their final ring positions, which produces clustered layouts.
+    const RADIAL_RADIUS = 90;
+    let firstSeed = true;
 
     // Precompute degree per node so we can scale radius by connectivity —
     // hubs render bigger, leaves stay small (Obsidian-style).
@@ -203,24 +227,37 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
 
     const dpr = window.devicePixelRatio || 1;
 
+    const isLocal = mode === 'local';
+    // Stop the simulation immediately on creation; we'll start it once
+    // resize() has seeded positions around the actual canvas center.
     const sim = forceSimulation(nodes)
-      .force('charge', forceManyBody().strength(mode === 'local' ? -420 : -280))
-      .force('link', forceLink(linkData).id((d: any) => d.id).distance(145))
-      // Full-strength collide with extra iterations gives crisper boundaries
-      // between nodes, so they don't smear into each other and the layout
-      // resolves into a cleaner geometric shape.
-      .force('collide', forceCollide().radius((d: any) => collideRadius(d as GraphNode)).strength(1).iterations(2))
-      .force('center', forceCenter(0, 0))
-      // Equal forceX/forceY toward origin produces a roughly circular
-      // equilibrium. Strength is balanced against charge so nodes spread
-      // into a disc instead of compressing into a blob.
-      .force('x', forceX(0).strength(0.07))
-      .force('y', forceY(0).strength(0.07))
-      // Lower alphaDecay = simulation runs longer before cooling, giving
-      // it time to settle into the geometric layout instead of freezing
-      // mid-relaxation.
+      .stop()
+      .force('charge', forceManyBody().strength(isLocal ? -300 : -280))
+      .force('link', forceLink(linkData).id((d: any) => d.id).distance(isLocal ? RADIAL_RADIUS : 145))
+      // In local mode the rail viewport is small so we use a node-only
+      // collide radius (with a small label buffer) — full label-aware
+      // collide would force neighbors so far apart they wouldn't fit.
+      .force('collide', forceCollide().radius(isLocal
+        ? ((d: any) => radiusFor(d as GraphNode) + 6)
+        : ((d: any) => collideRadius(d as GraphNode))
+      ).strength(1).iterations(2))
       .alphaDecay(0.025)
       .velocityDecay(0.55);
+
+    // Local mode: forceRadial actively pins neighbors at a fixed radius
+    // around the center, producing the clean Obsidian-style ring. Charge
+    // handles angular spread between siblings.
+    // Global mode: use centering forces so the cluster sits in the canvas.
+    let radialForce: ReturnType<typeof forceRadial> | null = null;
+    if (isLocal) {
+      radialForce = forceRadial(RADIAL_RADIUS, 0, 0).strength(0.85);
+      sim.force('radial', radialForce);
+    } else {
+      sim
+        .force('center', forceCenter(0, 0))
+        .force('x', forceX(0).strength(0.07))
+        .force('y', forceY(0).strength(0.07));
+    }
 
     // Pan/zoom transform; identity until the user interacts.
     let transform = zoomIdentity;
@@ -232,14 +269,55 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
     let down: DownState | null = null;
     const DRAG_THRESHOLD = 4;
 
+    // True when the local widget is small (rail) — used to scale label
+    // font size down so labels stay readable without devouring the small
+    // canvas. Updated in resize() to react to rail-resize / modal-expand.
+    let isSmallLocal = false;
+
     function resize() {
       const r = host.getBoundingClientRect();
       canvas.width = Math.max(1, Math.floor(r.width * dpr));
       canvas.height = Math.max(1, Math.floor(r.height * dpr));
       canvas.style.width = r.width + 'px';
       canvas.style.height = r.height + 'px';
-      sim.force('center', forceCenter(r.width / 2, r.height / 2));
-      sim.alpha(0.4).restart();
+      isSmallLocal = isLocal && r.width < 400;
+      const cx = r.width / 2;
+      const cy = r.height / 2;
+      if (!isLocal) {
+        sim.force('center', forceCenter(cx, cy));
+      }
+      if (radialForce) {
+        radialForce.x(cx).y(cy);
+      }
+      if (centerNode) {
+        centerNode.fx = cx;
+        centerNode.fy = cy;
+      }
+      // First time we know the canvas dimensions, place the center node
+      // and seed neighbors in an evenly-spaced ring around it. Without
+      // this they'd start at default (0,0) and migrate as a cluster
+      // toward canvas center, often settling lopsided.
+      if (firstSeed && centerNode && r.width > 0 && r.height > 0) {
+        centerNode.x = cx;
+        centerNode.y = cy;
+        const neighbors = nodes.filter((n) => n !== centerNode);
+        const N = neighbors.length;
+        if (N > 0) {
+          const step = (2 * Math.PI) / N;
+          const offset = -Math.PI / 2;
+          neighbors.forEach((n, i) => {
+            const a = offset + i * step;
+            n.x = cx + RADIAL_RADIUS * Math.cos(a);
+            n.y = cy + RADIAL_RADIUS * Math.sin(a);
+            n.vx = 0;
+            n.vy = 0;
+          });
+        }
+        firstSeed = false;
+        sim.alpha(1).restart();
+      } else {
+        sim.alpha(0.4).restart();
+      }
       dirty = true;
     }
 
@@ -326,21 +404,59 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
 
         const lblAlpha = (isFaded ? 0.1 : 1) * labelAlpha;
         if (lblAlpha > 0.04) {
+          // Scale text down in the small rail widget — Obsidian's local
+          // graph uses a noticeably smaller font there to keep labels
+          // legible without drowning the canvas.
+          const fontPx = isSmallLocal ? 10 : 13;
+          const linePx = isSmallLocal ? 12 : 16;
           ctx!.globalAlpha = lblAlpha;
-          ctx!.font = '400 ' + (13 / transform.k) + 'px Inter, system-ui, sans-serif';
+          ctx!.font = '400 ' + (fontPx / transform.k) + 'px Inter, system-ui, sans-serif';
           // At rest, every label gets the bright `text` color — they should
           // be readable against the dark background without competing with
           // the edge lines. Only when there's an active focus does the
           // non-focused subset drop to `muted` (combined with the lower
           // alpha) to push the focused cluster forward.
           ctx!.fillStyle = !focused || isInFocusSet || isCenter ? text : muted;
-          ctx!.textAlign = 'center';
-          ctx!.textBaseline = 'top';
+
+          // Radial label placement: in local mode each non-center node's
+          // label is anchored on the side of the node that points AWAY
+          // from the center. Right of center → label to the right; top →
+          // above; bottom → below; left → left. This keeps adjacent
+          // neighbors' labels from stacking on the same band.
           const lines = wrappedLabel(n);
-          const lineHeight = 16 / transform.k;
-          let y = n.y! + radius + 7 / transform.k;
+          const lineHeight = linePx / transform.k;
+          const gap = 5 / transform.k;
+          let labelX = n.x!;
+          let labelY = n.y! + radius + gap;
+          let align: CanvasTextAlign = 'center';
+          if (isLocal && centerNode && n !== centerNode) {
+            const cx = (centerNode.fx ?? centerNode.x ?? 0);
+            const cy = (centerNode.fy ?? centerNode.y ?? 0);
+            const dx = n.x! - cx;
+            const dy = n.y! - cy;
+            if (Math.abs(dx) > Math.abs(dy)) {
+              // Horizontal axis dominates: label to the side, vertically
+              // centered on the node.
+              if (dx > 0) {
+                labelX = n.x! + radius + gap;
+                align = 'left';
+              } else {
+                labelX = n.x! - radius - gap;
+                align = 'right';
+              }
+              labelY = n.y! - ((lines.length - 1) * lineHeight) / 2 - (fontPx / transform.k) / 2;
+            } else if (dy < 0) {
+              // Above the node: anchor block so its bottom sits just
+              // above the node circle.
+              labelY = n.y! - radius - gap - lines.length * lineHeight;
+            }
+            // Below (dy >= 0 in vertical-dominant case): default labelY.
+          }
+          ctx!.textAlign = align;
+          ctx!.textBaseline = 'top';
+          let y = labelY;
           for (const line of lines) {
-            ctx!.fillText(line, n.x!, y);
+            ctx!.fillText(line, labelX, y);
             y += lineHeight;
           }
         }
@@ -426,8 +542,16 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
       const node = down.node;
       try { canvas.releasePointerCapture(ev.pointerId); } catch {}
       if (wasDrag && node) {
-        node.fx = null;
-        node.fy = null;
+        if (centerNode && node === centerNode) {
+          // Re-pin the local graph's center node so it returns to canvas
+          // center after the user lets go.
+          const r = host.getBoundingClientRect();
+          node.fx = r.width / 2;
+          node.fy = r.height / 2;
+        } else {
+          node.fx = null;
+          node.fy = null;
+        }
         // Restore default damping; let the simulation settle to rest.
         sim.alphaTarget(0).velocityDecay(0.45);
       } else if (!cancelled && node) {

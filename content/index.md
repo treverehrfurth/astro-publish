@@ -1,5 +1,5 @@
 ---
-title: My Vault
+title: Astro Publish
 ---
 
 A static site published from an Obsidian vault, built with Astro and styled to closely resemble Obsidian Publish.

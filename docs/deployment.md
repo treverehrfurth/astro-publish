@@ -71,5 +71,5 @@ See [`.env.schema`](../.env.schema) for the documented variables. Most are optio
 |---|---|
 | `SITE_URL` | Canonical URL used in the sitemap and meta tags |
 | `OBSIDIAN_VAULT_DIR` | Override the default `content/` vault path |
-| `SITE_TITLE` | Override the default "My Vault" site title |
+| `SITE_TITLE` | Override the default "Astro Publish" site title |
 | `SITE_DESCRIPTION` | Default `<meta name="description">` |
