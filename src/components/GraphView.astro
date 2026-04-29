@@ -1,6 +1,8 @@
 ---
-// Renders a force-directed graph in the right rail (mode="local") or in a modal (mode="global").
-// Loaded as a deferred client island so it doesn't block first paint.
+// Renders a force-directed graph in the right rail (mode="local") or in a modal.
+// In a modal, mode can be "local" (expanded view of the current note's neighborhood)
+// or "global" (the entire vault graph). Loaded as a deferred client island so it
+// doesn't block first paint.
 //
 // Node colors come from `siteConfig.graphColors` — emitted here as a JSON
 // blob so the client-side script can pick it up without bundling the
@@ -12,7 +14,9 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
 <script type="application/json" id="graph-colors-config" set:html={graphColorsJson}></script>
 
 <script>
-  import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from 'd3-force';
+  import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide, forceX, forceY } from 'd3-force';
+  import { zoom, zoomIdentity, type ZoomBehavior } from 'd3-zoom';
+  import { select, pointer } from 'd3-selection';
 
   type GraphNode = { id: string; title: string; group?: string; x?: number; y?: number; vx?: number; vy?: number; fx?: number | null; fy?: number | null };
   type GraphEdge = { source: string | GraphNode; target: string | GraphNode };
@@ -57,11 +61,14 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
   }
 
   async function renderGraph(host: HTMLElement, mode: 'local' | 'global', centerSlug: string | null) {
+    // Clean any prior render in this host (used by the modal swap from local→global).
+    host.querySelectorAll('canvas').forEach((c) => c.remove());
+
     const data = await loadGraph();
     const accent = getCSSVar('--accent') || '#9b6cff';
     const muted = getCSSVar('--text-faint') || '#666';
     const text = getCSSVar('--text-muted') || '#999';
-    const edgeColor = getCSSVar('--border-strong') || '#444';
+    const edgeColor = getCSSVar('--border') || '#363636';
 
     let nodes = data.nodes;
     let edges = data.edges;
@@ -93,90 +100,378 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
       })
       .filter(Boolean) as Array<{ source: GraphNode; target: GraphNode }>;
 
+    // Precompute degree per node so we can scale radius by connectivity —
+    // hubs render bigger, leaves stay small (Obsidian-style).
+    const degree = new Map<string, number>();
+    for (const n of nodes) degree.set(n.id, 0);
+    for (const e of linkData) {
+      const sId = (e.source as GraphNode).id;
+      const tId = (e.target as GraphNode).id;
+      degree.set(sId, (degree.get(sId) ?? 0) + 1);
+      degree.set(tId, (degree.get(tId) ?? 0) + 1);
+    }
+    function radiusFor(n: GraphNode): number {
+      const deg = degree.get(n.id) ?? 0;
+      return 3 + Math.min(7, Math.sqrt(deg) * 0.9);
+    }
+
+    // Word-wrap each title to at most 2 lines, capped at ~110 screen pixels
+    // wide. The wrap is computed once per node against a fixed reference
+    // font (the same on-screen size we draw at) and cached, so it doesn't
+    // cost anything per frame and is independent of zoom.
+    const LABEL_FONT = '400 13px Inter, system-ui, sans-serif';
+    const LABEL_MAX_WIDTH = 130;
+    const measureCanvas = document.createElement('canvas');
+    const measureCtx = measureCanvas.getContext('2d')!;
+    measureCtx.font = LABEL_FONT;
+    const labelLines = new Map<string, string[]>();
+    function wrappedLabel(n: GraphNode): string[] {
+      const cached = labelLines.get(n.id);
+      if (cached) return cached;
+      const lines = wrapTwoLines(n.title, LABEL_MAX_WIDTH);
+      labelLines.set(n.id, lines);
+      return lines;
+    }
+    function wrapTwoLines(text: string, maxWidth: number): string[] {
+      const words = text.split(/\s+/).filter(Boolean);
+      if (words.length <= 1) return [text];
+      if (measureCtx.measureText(text).width <= maxWidth) return [text];
+      // Find the split that minimizes the longer of the two lines while both fit.
+      let bestSplit = -1;
+      let bestLonger = Infinity;
+      for (let i = 1; i < words.length; i++) {
+        const a = words.slice(0, i).join(' ');
+        const b = words.slice(i).join(' ');
+        const wa = measureCtx.measureText(a).width;
+        const wb = measureCtx.measureText(b).width;
+        const longer = Math.max(wa, wb);
+        if (longer <= maxWidth && longer < bestLonger) {
+          bestSplit = i;
+          bestLonger = longer;
+        }
+      }
+      if (bestSplit === -1) {
+        // No 2-line split fits; pick the split that minimizes overflow so
+        // at worst one word pokes past the budget.
+        for (let i = 1; i < words.length; i++) {
+          const a = words.slice(0, i).join(' ');
+          const b = words.slice(i).join(' ');
+          const longer = Math.max(measureCtx.measureText(a).width, measureCtx.measureText(b).width);
+          if (longer < bestLonger) {
+            bestSplit = i;
+            bestLonger = longer;
+          }
+        }
+      }
+      if (bestSplit === -1) return [text];
+      return [words.slice(0, bestSplit).join(' '), words.slice(bestSplit).join(' ')];
+    }
+
+    // Label-aware collide radius: each node reserves enough room for the
+    // widest of its label lines plus the vertical extent of its (up to 2)
+    // lines. Without this the simulation packs nodes tight enough that
+    // labels overlap badly even though the circles don't.
+    const collideCache = new Map<string, number>();
+    function collideRadius(n: GraphNode): number {
+      const cached = collideCache.get(n.id);
+      if (cached !== undefined) return cached;
+      const r = radiusFor(n);
+      const lines = wrappedLabel(n);
+      let widest = 0;
+      for (const line of lines) {
+        const w = measureCtx.measureText(line).width;
+        if (w > widest) widest = w;
+      }
+      const horiz = widest / 2 + 8;             // half label width + margin
+      const vert = (r + 6 + lines.length * 16) / 2 + 4; // mid of node+label box
+      const value = Math.max(r + 4, horiz, vert);
+      collideCache.set(n.id, value);
+      return value;
+    }
+
     // Canvas setup
     const canvas = document.createElement('canvas');
     canvas.style.width = '100%';
     canvas.style.height = '100%';
+    canvas.style.display = 'block';
+    canvas.style.touchAction = 'none';
+    canvas.style.cursor = 'grab';
     host.appendChild(canvas);
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
+
+    const sim = forceSimulation(nodes)
+      .force('charge', forceManyBody().strength(mode === 'local' ? -420 : -280))
+      .force('link', forceLink(linkData).id((d: any) => d.id).distance(145))
+      // Full-strength collide with extra iterations gives crisper boundaries
+      // between nodes, so they don't smear into each other and the layout
+      // resolves into a cleaner geometric shape.
+      .force('collide', forceCollide().radius((d: any) => collideRadius(d as GraphNode)).strength(1).iterations(2))
+      .force('center', forceCenter(0, 0))
+      // Equal forceX/forceY toward origin produces a roughly circular
+      // equilibrium. Strength is balanced against charge so nodes spread
+      // into a disc instead of compressing into a blob.
+      .force('x', forceX(0).strength(0.07))
+      .force('y', forceY(0).strength(0.07))
+      // Lower alphaDecay = simulation runs longer before cooling, giving
+      // it time to settle into the geometric layout instead of freezing
+      // mid-relaxation.
+      .alphaDecay(0.025)
+      .velocityDecay(0.55);
+
+    // Pan/zoom transform; identity until the user interacts.
+    let transform = zoomIdentity;
+    let dirty = true;
+    let hovered: GraphNode | null = null;
+
+    // Pointer / drag state
+    type DownState = { pointerId: number; startX: number; startY: number; node: GraphNode | null; dragging: boolean };
+    let down: DownState | null = null;
+    const DRAG_THRESHOLD = 4;
+
     function resize() {
       const r = host.getBoundingClientRect();
       canvas.width = Math.max(1, Math.floor(r.width * dpr));
       canvas.height = Math.max(1, Math.floor(r.height * dpr));
       canvas.style.width = r.width + 'px';
       canvas.style.height = r.height + 'px';
-      ctx!.setTransform(1, 0, 0, 1, 0, 0);
-      ctx!.scale(dpr, dpr);
       sim.force('center', forceCenter(r.width / 2, r.height / 2));
       sim.alpha(0.4).restart();
+      dirty = true;
     }
 
-    const sim = forceSimulation(nodes)
-      .force('charge', forceManyBody().strength(mode === 'local' ? -200 : -120))
-      .force('link', forceLink(linkData).id((d: any) => d.id).distance(60))
-      .force('collide', forceCollide().radius(14))
-      .force('center', forceCenter(0, 0))
-      .alphaDecay(0.04);
+    function worldFromScreen(sx: number, sy: number): [number, number] {
+      return [(sx - transform.x) / transform.k, (sy - transform.y) / transform.k];
+    }
 
-    let hovered: GraphNode | null = null;
+    function nodeAt(sx: number, sy: number): GraphNode | null {
+      const [wx, wy] = worldFromScreen(sx, sy);
+      // Hit radius stays roughly constant on-screen as we zoom.
+      const hitR = 16 / transform.k;
+      let best: GraphNode | null = null;
+      let bestDist = hitR;
+      for (const n of nodes) {
+        const dx = (n.x ?? 0) - wx;
+        const dy = (n.y ?? 0) - wy;
+        const d = Math.hypot(dx, dy);
+        if (d < bestDist) { bestDist = d; best = n; }
+      }
+      return best;
+    }
 
     function draw() {
       const r = host.getBoundingClientRect();
+      // Reset to a clean device-pixel transform, clear, then apply pan/zoom.
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, r.width, r.height);
+      ctx!.translate(transform.x, transform.y);
+      ctx!.scale(transform.k, transform.k);
 
-      ctx!.lineWidth = 1;
-      ctx!.strokeStyle = edgeColor;
+      // Focused node = whatever the user is dragging, else what they're
+      // hovering. When focused, the node + its direct neighbors stay full
+      // color and the rest fade — Obsidian-style spotlight.
+      const focused = down?.dragging ? down.node : hovered;
+      let connected: Set<string> | null = null;
+      if (focused) {
+        connected = new Set<string>([focused.id]);
+        for (const e of linkData) {
+          const sId = (e.source as GraphNode).id;
+          const tId = (e.target as GraphNode).id;
+          if (sId === focused.id) connected.add(tId);
+          if (tId === focused.id) connected.add(sId);
+        }
+      }
+
+      // Labels fade with zoom: visible at default zoom, gone at extreme
+      // zoom-out so they don't stack into an unreadable blob.
+      const labelAlpha = Math.max(0, Math.min(1, (transform.k - 0.4) / 0.4));
+
+      // Edges — thin and faint at rest, full opacity (accent) when an
+      // endpoint is focused, near-invisible when not part of the focused
+      // subset. Line width stays at ~1 screen px regardless of zoom.
+      ctx!.lineWidth = 0.8 / transform.k;
       for (const e of linkData) {
+        const sId = (e.source as GraphNode).id;
+        const tId = (e.target as GraphNode).id;
+        const isEdgeFocused = !!focused && (sId === focused.id || tId === focused.id);
+        const isEdgeFaded = !!focused && !isEdgeFocused;
+        ctx!.globalAlpha = isEdgeFocused ? 1 : isEdgeFaded ? 0.05 : 0.5;
+        ctx!.strokeStyle = isEdgeFocused ? accent : edgeColor;
         ctx!.beginPath();
         ctx!.moveTo((e.source as GraphNode).x!, (e.source as GraphNode).y!);
         ctx!.lineTo((e.target as GraphNode).x!, (e.target as GraphNode).y!);
         ctx!.stroke();
       }
+      ctx!.globalAlpha = 1;
 
+      // Nodes + always-on labels (centered below each node). Focus does NOT
+      // change the node's own color — only the edges to it light up. The
+      // node just stays at full opacity while non-neighbors fade hard.
       for (const n of nodes) {
         const isCenter = n.id === centerSlug;
-        const isHovered = hovered?.id === n.id;
-        const radius = isCenter ? 6 : (isHovered ? 6 : 4);
+        const isInFocusSet = connected?.has(n.id) ?? false;
+        const isFaded = !!focused && !isInFocusSet;
+
+        const radius = radiusFor(n) + (isCenter ? 1.5 : 0);
+        const nodeFill = isCenter ? accent : colorForGroup(n.group, accent, muted);
+
+        ctx!.globalAlpha = isFaded ? 0.15 : 1;
         ctx!.beginPath();
         ctx!.arc(n.x!, n.y!, radius, 0, Math.PI * 2);
-        ctx!.fillStyle = isCenter ? accent : colorForGroup(n.group, accent, muted);
+        ctx!.fillStyle = nodeFill;
         ctx!.fill();
-        if (isHovered) {
-          ctx!.font = '11px Inter, sans-serif';
-          ctx!.fillStyle = text;
-          ctx!.fillText(n.title, n.x! + 8, n.y! + 4);
+
+        const lblAlpha = (isFaded ? 0.1 : 1) * labelAlpha;
+        if (lblAlpha > 0.04) {
+          ctx!.globalAlpha = lblAlpha;
+          ctx!.font = '400 ' + (13 / transform.k) + 'px Inter, system-ui, sans-serif';
+          // At rest, every label gets the bright `text` color — they should
+          // be readable against the dark background without competing with
+          // the edge lines. Only when there's an active focus does the
+          // non-focused subset drop to `muted` (combined with the lower
+          // alpha) to push the focused cluster forward.
+          ctx!.fillStyle = !focused || isInFocusSet || isCenter ? text : muted;
+          ctx!.textAlign = 'center';
+          ctx!.textBaseline = 'top';
+          const lines = wrappedLabel(n);
+          const lineHeight = 16 / transform.k;
+          let y = n.y! + radius + 7 / transform.k;
+          for (const line of lines) {
+            ctx!.fillText(line, n.x!, y);
+            y += lineHeight;
+          }
         }
       }
+      ctx!.globalAlpha = 1;
     }
 
-    sim.on('tick', draw);
+    sim.on('tick', () => { dirty = true; });
 
-    canvas.addEventListener('mousemove', (ev) => {
+    let alive = true;
+    function frame() {
+      if (!alive) return;
+      if (dirty) { draw(); dirty = false; }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    // d3-zoom for pan + zoom. Filter skips pan when pointerdown is on a node so
+    // the manual node-drag handler below takes over.
+    const zoomBehavior: ZoomBehavior<HTMLCanvasElement, unknown> = zoom<HTMLCanvasElement, unknown>()
+      .scaleExtent([0.25, 4])
+      .filter((event: any) => {
+        if (event.type === 'wheel') return true;
+        if (event.type === 'pointerdown' || event.type === 'mousedown' || event.type === 'touchstart') {
+          const [sx, sy] = pointer(event, canvas);
+          if (nodeAt(sx, sy)) return false;
+        }
+        return !event.ctrlKey && !event.button;
+      })
+      .on('start', () => { canvas.style.cursor = 'grabbing'; })
+      .on('zoom', (event) => { transform = event.transform; dirty = true; })
+      .on('end', () => { canvas.style.cursor = hovered ? 'pointer' : 'grab'; });
+    select(canvas).call(zoomBehavior as any);
+
+    // Manual node drag + click-vs-navigate logic.
+    canvas.addEventListener('pointerdown', (ev) => {
       const r = canvas.getBoundingClientRect();
-      const x = ev.clientX - r.left;
-      const y = ev.clientY - r.top;
-      let best: GraphNode | null = null;
-      let bestDist = 16;
-      for (const n of nodes) {
-        const dx = (n.x ?? 0) - x;
-        const dy = (n.y ?? 0) - y;
-        const d = Math.hypot(dx, dy);
-        if (d < bestDist) { bestDist = d; best = n; }
-      }
-      if (best !== hovered) { hovered = best; draw(); canvas.style.cursor = best ? 'pointer' : 'default'; }
+      const sx = ev.clientX - r.left;
+      const sy = ev.clientY - r.top;
+      const node = nodeAt(sx, sy);
+      if (!node) return; // empty space — d3-zoom handles pan
+      ev.preventDefault();
+      try { canvas.setPointerCapture(ev.pointerId); } catch {}
+      down = { pointerId: ev.pointerId, startX: sx, startY: sy, node, dragging: false };
+      canvas.style.cursor = 'grabbing';
     });
 
-    canvas.addEventListener('click', () => {
-      if (hovered) {
-        window.location.href = '/' + hovered.id;
+    canvas.addEventListener('pointermove', (ev) => {
+      const r = canvas.getBoundingClientRect();
+      const sx = ev.clientX - r.left;
+      const sy = ev.clientY - r.top;
+
+      if (down && down.pointerId === ev.pointerId) {
+        const dx = sx - down.startX;
+        const dy = sy - down.startY;
+        if (!down.dragging && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+          down.dragging = true;
+          // Low alphaTarget + extra friction = neighbors track the dragged
+          // node smoothly without orbiting it. Reset on release.
+          sim.alphaTarget(0.1).velocityDecay(0.65).restart();
+        }
+        if (down.dragging && down.node) {
+          const [wx, wy] = worldFromScreen(sx, sy);
+          down.node.fx = wx;
+          down.node.fy = wy;
+          dirty = true;
+        }
+        return;
+      }
+
+      // Hover handling (no pointer down)
+      const node = nodeAt(sx, sy);
+      if (node !== hovered) {
+        hovered = node;
+        canvas.style.cursor = node ? 'pointer' : 'grab';
+        dirty = true;
       }
     });
 
-    new ResizeObserver(resize).observe(host);
+    function endPointer(ev: PointerEvent, cancelled: boolean) {
+      if (!down || down.pointerId !== ev.pointerId) return;
+      const wasDrag = down.dragging;
+      const node = down.node;
+      try { canvas.releasePointerCapture(ev.pointerId); } catch {}
+      if (wasDrag && node) {
+        node.fx = null;
+        node.fy = null;
+        // Restore default damping; let the simulation settle to rest.
+        sim.alphaTarget(0).velocityDecay(0.45);
+      } else if (!cancelled && node) {
+        // Click without drag → navigate.
+        window.location.href = '/' + node.id;
+      }
+      down = null;
+      canvas.style.cursor = hovered ? 'pointer' : 'grab';
+      dirty = true;
+    }
+
+    canvas.addEventListener('pointerup', (ev) => endPointer(ev, false));
+    canvas.addEventListener('pointercancel', (ev) => endPointer(ev, true));
+
+    canvas.addEventListener('mouseleave', () => {
+      hovered = null;
+      dirty = true;
+    });
+
+    // Stop the rAF loop when the host is removed from the DOM (modal close,
+    // view-transition swap of the rail).
+    const stopObserver = new MutationObserver(() => {
+      if (!host.isConnected) teardown();
+    });
+    stopObserver.observe(document.body, { childList: true, subtree: true });
+
+    const ro = new ResizeObserver(resize);
+    ro.observe(host);
+
+    function teardown() {
+      if (!alive) return;
+      alive = false;
+      sim.stop();
+      stopObserver.disconnect();
+      ro.disconnect();
+    }
+
+    // Expose hooks so external code (modal close handler) can re-fit the
+    // canvas when layout state has shifted under us, or tear down the
+    // simulation explicitly when removing the canvas without removing
+    // the host (e.g. clearing the modal body on close).
+    (host as any).__graphResize = resize;
+    (host as any).__graphTeardown = teardown;
+
     resize();
   }
 
@@ -198,28 +493,71 @@ const graphColorsJson = JSON.stringify(siteConfig.graphColors ?? {});
   initGraphs();
   document.addEventListener('astro:page-load', initGraphs);
 
-  // Expand to modal
-  document.addEventListener('click', (ev) => {
-    const btn = (ev.target as Element)?.closest?.('[data-graph-expand]');
-    if (!btn) return;
-    ev.preventDefault();
+  // Modal: shared between expand-local and open-global.
+  function openGraphModal(mode: 'local' | 'global', center: string | null) {
     let modal = document.querySelector('dialog.graph-modal') as HTMLDialogElement | null;
     if (!modal) {
       modal = document.createElement('dialog') as HTMLDialogElement;
       modal.className = 'graph-modal';
-      modal.innerHTML = `<button class="graph-modal-close" aria-label="Close" data-graph-close>Close</button><div class="graph-modal-body"></div>`;
+      modal.innerHTML = `
+        <div class="graph-modal-toolbar">
+          <button type="button" class="graph-tool" data-graph-modal-global aria-label="Switch to global graph" title="Open global graph">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>
+          </button>
+          <button type="button" class="graph-tool" data-graph-close aria-label="Close graph" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="graph-modal-body"></div>
+      `;
       document.body.appendChild(modal);
       modal.addEventListener('click', (e) => {
-        if ((e.target as Element).closest('[data-graph-close]') || e.target === modal) modal!.close();
+        const t = e.target as Element;
+        if (!t || !t.closest) return;
+        if (t.closest('[data-graph-close]')) { modal!.close(); return; }
+        if (t.closest('[data-graph-modal-global]')) {
+          // Swap the same modal to global mode.
+          const body = modal!.querySelector('.graph-modal-body') as HTMLElement;
+          modal!.setAttribute('data-graph-mode', 'global');
+          renderGraph(body, 'global', null);
+          return;
+        }
+        if (e.target === modal) modal!.close();
+      });
+      // When the dialog closes, (a) tear down the modal's simulation and
+      // clear its canvas so it doesn't keep ticking invisibly, and (b)
+      // refit any rail-side graph widget — the dialog's lifecycle can
+      // leave the rail's canvas with stale dimensions and a blank render
+      // until something prompts a redraw.
+      modal.addEventListener('close', () => {
+        const body = modal!.querySelector('.graph-modal-body') as HTMLElement | null;
+        if (body) {
+          (body as any).__graphTeardown?.();
+          body.innerHTML = '';
+        }
+        document.querySelectorAll<HTMLElement>('.graph-widget[data-graph-mode]').forEach((widget) => {
+          (widget as any).__graphResize?.();
+        });
       });
     }
     const body = modal.querySelector('.graph-modal-body') as HTMLElement;
     body.innerHTML = '';
-    const widget = document.createElement('div');
-    widget.className = 'graph-widget';
-    widget.style.height = '100%';
-    body.appendChild(widget);
+    body.style.height = '100%';
+    modal.setAttribute('data-graph-mode', mode);
     if (typeof modal.showModal === 'function') modal.showModal();
-    renderGraph(widget, 'global', null);
+    renderGraph(body, mode, center);
+  }
+
+  // Toolbar dispatch: expand opens local modal, global icon opens global modal.
+  document.addEventListener('click', (ev) => {
+    const target = ev.target as Element;
+    if (!target || !target.closest) return;
+    const expand = target.closest('[data-graph-expand]');
+    const global = target.closest('[data-graph-global]');
+    if (!expand && !global) return;
+    ev.preventDefault();
+    const widget = (expand ?? global)?.closest('.graph-widget') as HTMLElement | null;
+    const center = expand ? widget?.getAttribute('data-graph-center') ?? null : null;
+    openGraphModal(expand ? 'local' : 'global', center);
   });
 </script>

@@ -131,23 +131,32 @@
   display: block;
 }
 
-.graph-expand {
+.graph-toolbar {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 0.2rem 0.5rem;
-  font-size: 0.75em;
-  color: var(--text-muted);
-  cursor: pointer;
+  top: 0.4rem;
+  right: 0.4rem;
   z-index: 2;
+  display: flex;
+  gap: 0.25rem;
 }
-.graph-expand:hover {
-  color: var(--accent);
-  border-color: var(--accent);
+.graph-tool {
+  background: transparent;
+  border: 0;
+  padding: 0.3rem;
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
 }
+.graph-tool:hover { color: var(--accent); background: var(--hover-bg); }
+.graph-tool:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.graph-tool svg { display: block; }
 
 /* Backlinks block under content */
 .backlinks-block {

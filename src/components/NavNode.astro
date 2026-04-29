@@ -23,6 +23,12 @@ const displayTitle = node.isFolder
   ? node.title
   : (node.title.replace(/^\d{4}-\d{2}-\d{2}\s*[-–—]?\s*/, '').trim() || node.title);
 
+// File-type badge (PNG, PDF, etc.) for non-markdown leaves. Attachments
+// have a `url` set; markdown notes don't, so this is a clean discriminator.
+const leafExt = !node.isFolder && (node as any).url && node.name?.includes('.')
+  ? (node.name.split('.').pop() ?? '').toUpperCase()
+  : null;
+
 import Self from './NavNode.astro';
 ---
 
@@ -49,7 +55,8 @@ import Self from './NavNode.astro';
 ) : (
   <li class="nav-leaf">
     <a href={node.url ?? (node.slug ? '/' + node.slug : '/')} aria-current={isCurrent ? 'page' : undefined} title={node.title} target={node.url ? '_blank' : undefined} rel={node.url ? 'noopener' : undefined}>
-      {displayTitle}
+      <span class="nav-leaf-title">{displayTitle}</span>
+      {leafExt && <span class="nav-leaf-ext">{leafExt}</span>}
     </a>
   </li>
 )}
