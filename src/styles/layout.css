@@ -20,6 +20,45 @@
 }
 .app-nav::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
+/* Draggable resize handle pinned to the right edge of the nav column.
+   Uses position: fixed so it ignores the nav's own scroll container and
+   stays alongside the viewport. The handle's `left` tracks --nav-width
+   so dragging it (which updates --nav-width on :root) moves both the
+   grid column and the handle together. */
+.nav-resize-handle {
+  position: fixed;
+  top: 0;
+  height: 100vh;
+  left: calc(var(--nav-width) - 3px);
+  width: 7px;
+  cursor: col-resize;
+  z-index: 12;
+  background: transparent;
+  transition: background var(--dur-2) var(--ease);
+  touch-action: none;
+}
+.nav-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: transparent;
+  transition: background var(--dur-2) var(--ease);
+}
+.nav-resize-handle:hover::after,
+.nav-resize-handle.is-dragging::after {
+  background: var(--accent);
+}
+
+body.is-nav-resizing,
+body.is-nav-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 .app-main {
   grid-area: main;
   min-width: 0;
@@ -235,6 +274,9 @@
   }
   .app-nav[data-open='true'] { transform: translateX(0); }
   .topbar-btn-left { visibility: visible; }
+
+  /* Resize handle is meaningless when the nav is a slide-out panel. */
+  .nav-resize-handle { display: none; }
 
   /* Tighten the article shell and typography for narrow screens. */
   .note-shell {

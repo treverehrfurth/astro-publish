@@ -54,6 +54,22 @@ const fullTitle = title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
         applyTheme();
         document.addEventListener('astro:after-swap', applyTheme);
       })();
+
+      // Apply the saved nav width before first paint so we don't flash
+      // the default width and snap to the user's preferred size.
+      (function () {
+        function applyNavWidth() {
+          let stored;
+          try { stored = parseInt(localStorage.getItem('nav-width') || '', 10); } catch {}
+          if (!Number.isFinite(stored)) return;
+          var min = 280;
+          var max = Math.min(800, Math.max(min, Math.round(window.innerWidth * 0.5)));
+          var w = Math.max(min, Math.min(max, stored));
+          document.documentElement.style.setProperty('--nav-width', w + 'px');
+        }
+        applyNavWidth();
+        document.addEventListener('astro:after-swap', applyNavWidth);
+      })();
     </script>
 
     <link rel="preconnect" href="https://rsms.me/" />
@@ -132,6 +148,65 @@ const fullTitle = title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
         document.addEventListener('astro:after-swap', () => {
           const tree = document.querySelector('.nav-tree');
           if (tree) tree.scrollTop = savedTop;
+        });
+      })();
+
+      // Drag-to-resize on the nav-resize-handle. Document-level pointerdown
+      // delegation so it survives view-transition DOM swaps without
+      // re-attaching anything.
+      (function () {
+        if (window.__navResizeAttached) return;
+        window.__navResizeAttached = true;
+
+        const KEY = 'nav-width';
+        const MIN = 280;
+        function maxFor(vw) {
+          return Math.min(800, Math.max(MIN, Math.round(vw * 0.5)));
+        }
+
+        document.addEventListener('pointerdown', (e) => {
+          const t = e.target;
+          if (!t || !t.closest) return;
+          const handle = t.closest('[data-nav-resize]');
+          if (!handle) return;
+          // Mobile breakpoint hides the handle via display:none, but
+          // belt-and-suspenders: skip if nav is in slide-out mode.
+          if (window.matchMedia('(max-width: 720px)').matches) return;
+          e.preventDefault();
+          try { handle.setPointerCapture(e.pointerId); } catch {}
+          handle.classList.add('is-dragging');
+          document.body.classList.add('is-nav-resizing');
+
+          const onMove = (ev) => {
+            const max = maxFor(window.innerWidth);
+            const w = Math.max(MIN, Math.min(max, ev.clientX));
+            document.documentElement.style.setProperty('--nav-width', w + 'px');
+          };
+          const onUp = (ev) => {
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', onUp);
+            handle.removeEventListener('pointercancel', onUp);
+            handle.classList.remove('is-dragging');
+            document.body.classList.remove('is-nav-resizing');
+            const max = maxFor(window.innerWidth);
+            const w = Math.max(MIN, Math.min(max, ev.clientX));
+            try { localStorage.setItem(KEY, String(Math.round(w))); } catch {}
+          };
+          handle.addEventListener('pointermove', onMove);
+          handle.addEventListener('pointerup', onUp);
+          handle.addEventListener('pointercancel', onUp);
+        });
+
+        // If the viewport shrinks, clamp the stored width so the nav
+        // doesn't overflow into where the article should be.
+        window.addEventListener('resize', () => {
+          const cur = getComputedStyle(document.documentElement).getPropertyValue('--nav-width').trim();
+          const px = parseInt(cur, 10);
+          if (!Number.isFinite(px)) return;
+          const max = maxFor(window.innerWidth);
+          if (px > max) {
+            document.documentElement.style.setProperty('--nav-width', max + 'px');
+          }
         });
       })();
     </script>

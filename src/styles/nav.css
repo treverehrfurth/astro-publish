@@ -202,35 +202,29 @@
 .nav-tree > ul > .nav-leaf > a[aria-current='page'] { color: var(--accent); }
 
 /* ── Nested children (inside an expanded folder) ─────────────────
-   Single-line behaviour: only ONE vertical guide line is ever visible
-   at a time — the line for the *deepest* currently-expanded children
-   list. Outer guide lines are suppressed in any branch that contains a
-   further-expanded folder, so we never stack parallel guides. */
+   Obsidian-style guide lines: every expanded folder's children list
+   draws its own vertical guide line, and lines stack as you nest
+   deeper. The root list (.nav-tree > ul) is the only level without a
+   guide, since there is no parent folder above it. */
 
 .nav-folder > ul {
   margin-left: 0.875rem;
   padding-left: 0;
-}
-
-/* Container border on every nested children-list. The :has() rule
-   below suppresses outer borders when a deeper one is active. */
-.nav-folder > ul .nav-folder > ul {
   border-left: 1px solid var(--border);
 }
 
-/* Suppress an outer container's border when any direct-child folder is
-   open: the inner expansion's own line takes over. */
-.nav-folder > ul .nav-folder > ul:has(> .nav-folder-item > details[open]) {
-  border-left-color: transparent;
-}
-
-/* Leaves: their own per-row border so the line continues across leaf
-   rows even at depths where the container border isn't drawn. */
+/* Leaves: a transparent border-left at the same x as the parent ul's
+   border, so the parent ul's guide line passes through cleanly without
+   stacking two solid lines on top of each other. The transparent
+   border becomes colored on hover / current-page to overlay the accent
+   on the guide line. Padding-left matches the folder summary's
+   chevron + gap + label offset (0.5rem padding + 12px chevron + 0.4rem
+   gap) so leaf text aligns with sibling folder labels. */
 .nav-folder > ul > .nav-leaf > a {
   display: block;
   margin-left: -1px;
-  border-left: 1px solid var(--border);
-  padding: 0.42rem 0.5rem 0.42rem 1rem;
+  border-left: 1px solid transparent;
+  padding: 0.42rem 0.5rem 0.42rem calc(0.9rem + 12px);
   color: var(--text-muted);
   text-decoration: none;
   font-weight: 400;
@@ -252,18 +246,9 @@
   font-weight: 500;
 }
 
-/* If the containing <ul> has been "demoted" by the :has() rule (because
-   an inner folder is expanded), suppress per-leaf borders too — the
-   inner expansion's own line is the only one we want visible. */
-.nav-folder > ul:has(> .nav-folder-item > details[open]) > .nav-leaf > a {
-  border-left-color: transparent;
-}
-.nav-folder > ul:has(> .nav-folder-item > details[open]) > .nav-leaf > a[aria-current='page'] {
-  border-left-color: var(--accent);
-}
-
 /* Folder summaries inside a children list: transparent slot so the
-   column position is preserved through folder rows. */
+   column position is preserved through folder rows (the parent ul's
+   border shows through). */
 .nav-folder > ul > .nav-folder-item > details > summary {
   margin-left: -1px;
   border-left: 1px solid transparent;
