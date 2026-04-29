@@ -85,6 +85,82 @@ body.is-nav-resizing * {
   scrollbar-width: none;
 }
 .app-rail::-webkit-scrollbar { width: 0; height: 0; display: none; }
+/* Clip horizontal overflow so the rail collapses cleanly when --rail-width
+   shrinks (including to 0 via the toggle button). */
+.app-rail { overflow-x: hidden; min-width: 0; }
+
+/* Draggable resize handle pinned to the LEFT edge of the rail column —
+   mirror of the left nav's handle. Tracks --rail-width so the strip sits
+   on the boundary regardless of width. */
+.rail-resize-handle {
+  position: fixed;
+  top: 0;
+  height: 100vh;
+  right: calc(var(--rail-width) - 3px);
+  width: 7px;
+  cursor: col-resize;
+  z-index: 12;
+  background: transparent;
+  touch-action: none;
+}
+.rail-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: transparent;
+  transition: background var(--dur-2) var(--ease);
+}
+.rail-resize-handle:hover::after,
+.rail-resize-handle.is-dragging::after {
+  background: var(--accent);
+}
+
+/* Small chevron button anchored to the viewport's top-right corner.
+   When the rail is open it sits inside the rail's header area; when the
+   rail is collapsed it remains in the same spot at the viewport edge,
+   ready to be clicked to expand the rail back. The chevron flips
+   horizontally to indicate direction. */
+.rail-toggle {
+  position: fixed;
+  top: 0.7rem;
+  /* Align the button's right edge with the local-graph widget's right
+     border (the rail has 1rem horizontal padding). */
+  right: 1rem;
+  z-index: 13;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0.25rem;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+.rail-toggle:hover {
+  color: var(--accent);
+  border-color: var(--border-strong);
+}
+.rail-toggle[aria-expanded='false'] svg {
+  transform: scaleX(-1);
+}
+
+body.is-rail-resizing,
+body.is-rail-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+/* When the rail is fully collapsed, the resize handle's position would
+   leave a sliver hoverable at the viewport's right edge. Hide it so it
+   isn't accidentally grabbed; the toggle button is the only way to
+   bring the rail back. */
+body.is-rail-collapsed .rail-resize-handle { display: none; }
 
 /* Header block (title + meta + tags) gets a divider below to separate
    it from the article body. */
@@ -244,6 +320,11 @@ body.is-nav-resizing * {
     padding: 1.25rem 1rem 1.5rem;
   }
   .app-rail[data-open='true'] { transform: translateX(0); }
+
+  /* Resize handle and collapse button only make sense when the rail is
+     in-grid; in slide-out mode the mobile-topbar buttons are the way in. */
+  .rail-resize-handle,
+  .rail-toggle { display: none; }
 
   /* Hamburger only matters when the directory is hidden — at tablet
      widths the directory is permanent, so leave a balanced empty slot

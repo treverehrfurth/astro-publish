@@ -89,10 +89,23 @@ const ogImageURL = Astro.site ? new URL('/og-image.png', Astro.site).href : '/og
         applyNavWidth();
         document.addEventListener('astro:after-swap', applyNavWidth);
       })();
+
+      // Same early restore for the right rail's width (0 = collapsed).
+      (function () {
+        function applyRailWidth() {
+          let stored;
+          try { stored = parseInt(localStorage.getItem('rail-width') || '', 10); } catch {}
+          if (!Number.isFinite(stored)) return;
+          var max = Math.min(600, Math.max(0, Math.round(window.innerWidth * 0.5)));
+          var w = Math.max(0, Math.min(max, stored));
+          document.documentElement.style.setProperty('--rail-width', w + 'px');
+        }
+        applyRailWidth();
+        document.addEventListener('astro:after-swap', applyRailWidth);
+      })();
     </script>
 
-    <link rel="preconnect" href="https://rsms.me/" />
-    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+    <link rel="preload" href="/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
 
     <ClientRouter />
   </head>
@@ -159,15 +172,41 @@ const ogImageURL = Astro.site ? new URL('/og-image.png', Astro.site).href : '/og
       (function () {
         if (window.__navScrollGuard) return;
         window.__navScrollGuard = true;
+        // Continuous capture-on-scroll into sessionStorage, plus apply
+        // on Astro view-transitions. The hard-refresh path is handled
+        // synchronously inside LeftNav.astro's inline script (which
+        // runs while the nav is being parsed, before first paint) to
+        // avoid a visible jump from scroll-0 to the saved position.
+        const KEY = 'nav-scroll';
         let savedTop = 0;
-        document.addEventListener('astro:before-preparation', () => {
+        try {
+          const stored = parseInt(sessionStorage.getItem(KEY) || '', 10);
+          if (Number.isFinite(stored)) savedTop = stored;
+        } catch {}
+        let suppressCapture = false;
+        function capture() {
+          if (suppressCapture) return;
           const tree = document.querySelector('.nav-tree');
-          if (tree) savedTop = tree.scrollTop;
-        });
-        document.addEventListener('astro:after-swap', () => {
+          if (!tree) return;
+          savedTop = tree.scrollTop;
+          try { sessionStorage.setItem(KEY, String(savedTop)); } catch {}
+        }
+        function apply() {
           const tree = document.querySelector('.nav-tree');
-          if (tree) tree.scrollTop = savedTop;
-        });
+          if (!tree || savedTop <= 0) return;
+          // Suppress the synchronous scroll event that programmatically
+          // setting scrollTop fires, so it doesn't overwrite savedTop
+          // with a possibly-clamped value before layout settles.
+          suppressCapture = true;
+          tree.scrollTop = savedTop;
+          requestAnimationFrame(() => requestAnimationFrame(() => { suppressCapture = false; }));
+        }
+        document.addEventListener('scroll', (e) => {
+          const t = e.target;
+          if (t && t.classList && t.classList.contains('nav-tree')) capture();
+        }, true);
+        document.addEventListener('astro:before-preparation', capture);
+        document.addEventListener('astro:after-swap', apply);
       })();
 
       // Drag-to-resize on the nav-resize-handle. Document-level pointerdown
@@ -225,6 +264,108 @@ const ogImageURL = Astro.site ? new URL('/og-image.png', Astro.site).href : '/og
           const max = maxFor(window.innerWidth);
           if (px > max) {
             document.documentElement.style.setProperty('--nav-width', max + 'px');
+          }
+        });
+      })();
+
+      // Drag-to-resize + click-to-toggle for the right rail. Mirror of
+      // the nav-resize logic above, but anchored to the right edge of the
+      // viewport. Min is 0 (fully collapsible). Toggle button flips
+      // between 0 and the previously-set "open" width.
+      (function () {
+        if (window.__railResizeAttached) return;
+        window.__railResizeAttached = true;
+
+        const KEY = 'rail-width';
+        const SAVED_KEY = 'rail-width-saved';
+        const MIN = 0;          // absolute floor (toggle button can hit 0)
+        const DRAG_MIN = 240;   // drag-to-resize can't go below this; use the toggle to fully collapse
+        const COLLAPSED_THRESHOLD = 20;
+        function maxFor(vw) {
+          return Math.min(600, Math.max(MIN, Math.round(vw * 0.5)));
+        }
+        function curWidth() {
+          const cur = getComputedStyle(document.documentElement).getPropertyValue('--rail-width').trim();
+          const px = parseInt(cur, 10);
+          return Number.isFinite(px) ? px : 300;
+        }
+        function syncToggle() {
+          const isOpen = curWidth() > COLLAPSED_THRESHOLD;
+          document.body.classList.toggle('is-rail-collapsed', !isOpen);
+          document.querySelectorAll('[data-rail-toggle]').forEach((btn) => {
+            btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+          });
+        }
+        syncToggle();
+        document.addEventListener('astro:after-swap', syncToggle);
+
+        document.addEventListener('pointerdown', (e) => {
+          const t = e.target;
+          if (!t || !t.closest) return;
+          const handle = t.closest('[data-rail-resize]');
+          if (!handle) return;
+          if (window.matchMedia('(max-width: 1100px)').matches) return;
+          e.preventDefault();
+          try { handle.setPointerCapture(e.pointerId); } catch {}
+          handle.classList.add('is-dragging');
+          document.body.classList.add('is-rail-resizing');
+
+          const onMove = (ev) => {
+            const max = maxFor(window.innerWidth);
+            const w = Math.max(DRAG_MIN, Math.min(max, window.innerWidth - ev.clientX));
+            document.documentElement.style.setProperty('--rail-width', w + 'px');
+          };
+          const onUp = (ev) => {
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', onUp);
+            handle.removeEventListener('pointercancel', onUp);
+            handle.classList.remove('is-dragging');
+            document.body.classList.remove('is-rail-resizing');
+            const max = maxFor(window.innerWidth);
+            const w = Math.max(DRAG_MIN, Math.min(max, window.innerWidth - ev.clientX));
+            try { localStorage.setItem(KEY, String(Math.round(w))); } catch {}
+            // Remember the last "usefully open" width so the toggle
+            // button has somewhere to expand back to.
+            try { localStorage.setItem(SAVED_KEY, String(Math.round(w))); } catch {}
+            syncToggle();
+          };
+          handle.addEventListener('pointermove', onMove);
+          handle.addEventListener('pointerup', onUp);
+          handle.addEventListener('pointercancel', onUp);
+        });
+
+        // Toggle: click the chevron to collapse to 0 or restore to the
+        // last open width (default 300).
+        document.addEventListener('click', (ev) => {
+          const t = ev.target;
+          if (!t || !t.closest) return;
+          const btn = t.closest('[data-rail-toggle]');
+          if (!btn) return;
+          if (window.matchMedia('(max-width: 1100px)').matches) return;
+          ev.preventDefault();
+          const cur = curWidth();
+          let next;
+          if (cur > COLLAPSED_THRESHOLD) {
+            try { localStorage.setItem(SAVED_KEY, String(cur)); } catch {}
+            next = 0;
+          } else {
+            let saved = 300;
+            try {
+              const s = parseInt(localStorage.getItem(SAVED_KEY) || '', 10);
+              if (Number.isFinite(s) && s > 100) saved = s;
+            } catch {}
+            next = Math.min(maxFor(window.innerWidth), saved);
+          }
+          document.documentElement.style.setProperty('--rail-width', next + 'px');
+          try { localStorage.setItem(KEY, String(next)); } catch {}
+          syncToggle();
+        });
+
+        window.addEventListener('resize', () => {
+          const cur = curWidth();
+          const max = maxFor(window.innerWidth);
+          if (cur > max) {
+            document.documentElement.style.setProperty('--rail-width', max + 'px');
           }
         });
       })();

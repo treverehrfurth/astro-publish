@@ -174,6 +174,20 @@ sortTree(root);
       });
     });
 
+    // Restore nav-tree scroll position from sessionStorage SYNCHRONOUSLY,
+    // before the browser's first paint of the nav. Layout.astro's
+    // nav-scroll guard handles client-side navigation and continuous
+    // capture-on-scroll; this branch covers the hard-refresh path so
+    // the user doesn't see chevrons paint at scroll 0 and visibly jump
+    // to the saved position after DOMContentLoaded.
+    try {
+      const s = parseInt(sessionStorage.getItem('nav-scroll') || '', 10);
+      if (Number.isFinite(s) && s > 0) {
+        const tree = document.querySelector('.nav-tree');
+        if (tree) tree.scrollTop = s;
+      }
+    } catch {}
+
     // Mobile slide-out panels (left = directory nav, right = contents
     // rail). Document-level delegation so it works no matter when the
     // topbar buttons are parsed and survives view-transition swaps.
