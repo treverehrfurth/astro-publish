@@ -1,7 +1,7 @@
 {
   "name": "astro-vault-template",
   "type": "module",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Obsidian Publish-style static site template for any Obsidian vault, built on Astro.",
   "license": "MIT",
   "scripts": {

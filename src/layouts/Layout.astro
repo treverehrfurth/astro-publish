@@ -23,12 +23,18 @@ interface Props {
 
 const {
   title = process.env.SITE_TITLE ?? 'My Vault',
-  description = process.env.SITE_DESCRIPTION ?? '',
+  description = process.env.SITE_DESCRIPTION ?? 'A static site published from an Obsidian vault, built with Astro and styled to closely resemble Obsidian Publish.',
   currentSlug = '',
 } = Astro.props as Props;
 
 const siteTitle = process.env.SITE_TITLE ?? 'My Vault';
 const fullTitle = title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
+
+// Absolute URLs for social-share previews. `Astro.site` comes from
+// astro.config.ts; `Astro.url.pathname` is the current page. Drop a
+// `og-image.png` (recommended 1200x630) into `public/` to use it.
+const canonicalURL = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : Astro.url.pathname;
+const ogImageURL = Astro.site ? new URL('/og-image.png', Astro.site).href : '/og-image.png';
 ---
 
 <!doctype html>
@@ -37,8 +43,21 @@ const fullTitle = title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonicalURL} />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:image" content={ogImageURL} />
+    <meta property="og:site_name" content={siteTitle} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageURL} />
 
     <script is:inline>
       // Re-applied on every page load AND every view-transition swap. Astro's
