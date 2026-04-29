@@ -49,7 +49,23 @@ const tocHtml = renderNodes(buildTree(toc));
   <section class="rail-section">
     <h2>Local graph</h2>
     <div class="graph-widget" data-graph-mode="local" data-graph-center={slug}>
-      <button type="button" class="graph-expand" data-graph-expand aria-label="Expand graph">⤢</button>
+      <div class="graph-toolbar">
+        <button type="button" class="graph-tool" data-graph-global aria-label="Open global graph" title="Open global graph">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="18" r="3"/>
+            <circle cx="6" cy="6" r="3"/>
+            <circle cx="18" cy="6" r="3"/>
+            <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/>
+            <path d="M12 12v3"/>
+          </svg>
+        </button>
+        <button type="button" class="graph-tool" data-graph-expand aria-label="Expand local graph" title="Expand local graph">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m15 15 6 6"/><path d="m15 9 6-6"/><path d="M21 16v5h-5"/><path d="M21 8V3h-5"/>
+            <path d="M3 16v5h5"/><path d="m3 21 6-6"/><path d="M3 8V3h5"/><path d="M9 9 3 3"/>
+          </svg>
+        </button>
+      </div>
     </div>
   </section>
 

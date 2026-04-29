@@ -20,18 +20,16 @@
   height: 100%;
   display: block;
 }
-.graph-modal-close {
+.graph-modal-toolbar {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
-  background: var(--bg-alt);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 0.3rem 0.7rem;
-  font-size: 0.85em;
-  cursor: pointer;
-  color: var(--text-muted);
+  z-index: 2;
+  display: flex;
+  gap: 0.25rem;
 }
-.graph-modal-close:hover {
-  color: var(--text);
+/* Hide the in-modal "switch to global" button when the modal is already
+   showing the global graph. */
+.graph-modal[data-graph-mode='global'] .graph-modal-toolbar [data-graph-modal-global] {
+  display: none;
 }
