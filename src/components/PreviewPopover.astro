@@ -1,10 +1,17 @@
 ---
 // Hover popover for wikilinks. Loads /api/preview/<slug>.html lazily.
 ---
-<div class="preview-popover" data-preview-host hidden></div>
+<div class="preview-popover" data-preview-host transition:persist="preview-popover" hidden></div>
 
 <script is:inline>
+  // The popover host persists across view transitions (transition:persist
+  // above), and this script re-executes after every page swap. Guard so
+  // we attach document-level listeners exactly once — otherwise duplicate
+  // mouseover/mouseout handlers stack up and the captured host reference
+  // goes stale.
   (function () {
+    if (window.__previewAttached) return;
+    window.__previewAttached = true;
     const host = document.querySelector('[data-preview-host]');
     if (!host) return;
     let openSlug = null;
@@ -72,6 +79,9 @@
     document.addEventListener('mouseover', (ev) => {
       const a = ev.target?.closest?.('a.wiki[data-preview-slug]');
       if (!a) return;
+      // Don't trigger a nested popover when the user hovers a link that's
+      // already inside an open popover — a single-level preview is plenty.
+      if (a.closest('.preview-popover')) return;
       clearTimeout(timer);
       timer = setTimeout(() => show(a), 250);
     });
@@ -79,11 +89,22 @@
     document.addEventListener('mouseout', (ev) => {
       const a = ev.target?.closest?.('a.wiki[data-preview-slug]');
       if (!a) return;
+      if (a.closest('.preview-popover')) return;
       clearTimeout(timer);
       timer = setTimeout(hide, 200);
     });
 
     host.addEventListener('mouseenter', () => { clearTimeout(timer); });
     host.addEventListener('mouseleave', () => { clearTimeout(timer); timer = setTimeout(hide, 100); });
+
+    // Close the popover when the user clicks a link inside it (the page is
+    // about to navigate via ClientRouter, but no mouseout fires after the
+    // click so the popover would otherwise stick visible until the next
+    // hover). Also belt-and-suspenders: any view-transition swap closes
+    // the popover so it doesn't outlive its trigger context.
+    host.addEventListener('click', (ev) => {
+      if (ev.target?.closest?.('a')) hide();
+    });
+    document.addEventListener('astro:before-preparation', hide);
   })();
 </script>

@@ -1,41 +1,42 @@
+/*
+ * Hover-popover for wikilinks. The body div carries the `note-body`
+ * class so all article-body typography (inline code, callouts, tables,
+ * lists, headings, wikilinks) renders identically inside the popover.
+ * Rules below are popover-only deltas — outer container behavior plus
+ * tightened spacing and safety caps for the small viewport.
+ */
+
 .preview-popover {
   position: fixed;
   z-index: 100;
   width: 450px;
   max-height: 400px;
-  overflow: hidden;
+  /* Scroll the whole popover (title/meta scroll along with body) — like
+     Obsidian's hover preview. The wheel events stay inside the popover
+     because pointer-events flip to auto when it opens. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   background: var(--popover-bg);
   border-radius: var(--r-md);
   box-shadow: var(--popover-shadow);
   padding: 1rem 1.25rem;
-  font-size: 0.9em;
-  line-height: 1.5;
   color: var(--text);
   pointer-events: none;
   opacity: 0;
   transform: translateY(4px);
   transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
+.preview-popover::-webkit-scrollbar { width: 8px; }
+.preview-popover::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+.preview-popover::-webkit-scrollbar-track { background: transparent; }
 
 .preview-popover.open {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
-}
-
-.preview-popover h1,
-.preview-popover h2,
-.preview-popover h3 {
-  font-size: 1em;
-  margin: 0 0 0.4em;
-  border: 0;
-}
-
-.preview-popover .preview-title {
-  font-weight: 600;
-  font-size: 1em;
-  margin: 0 0 0.3em;
-  color: var(--text);
 }
 
 .preview-popover .preview-meta {
@@ -46,20 +47,48 @@
   letter-spacing: 0.06em;
 }
 
-.preview-popover .preview-body {
-  color: var(--text-muted);
-  font-size: 0.9em;
-  max-height: 280px;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent);
-  mask-image: linear-gradient(to bottom, black 70%, transparent);
-}
-
-.preview-popover .preview-body p {
-  margin: 0.4em 0;
+.preview-popover .preview-title {
+  font-weight: 600;
+  font-size: 1em;
+  margin: 0 0 0.3em;
+  color: var(--text);
 }
 
 .preview-popover .preview-empty {
   color: var(--text-faint);
   font-style: italic;
 }
+
+/* ── Article-body deltas inside the popover ───────────────────────────
+   The body uses .note-body so it inherits the article's typography.
+   These overrides tighten things up for the 450x400 popover viewport
+   without redefining anything that already looks right. */
+
+/* Tighten the article's vertical rhythm: `.note-body > * + *` ships at
+   margin-top: 1rem, which leaves the popover feeling sparse. */
+.preview-popover .preview-body.note-body > * + * {
+  margin-top: 0.6rem;
+}
+
+/* Article H1-H6 use 2rem top margin which would push everything down
+   past the visible viewport. Tighten for the popover. */
+.preview-popover .preview-body.note-body h1,
+.preview-popover .preview-body.note-body h2,
+.preview-popover .preview-body.note-body h3,
+.preview-popover .preview-body.note-body h4,
+.preview-popover .preview-body.note-body h5,
+.preview-popover .preview-body.note-body h6 {
+  margin: 0.6rem 0 0.3rem;
+}
+
+/* No <pre> overrides — the article's `.note-body pre` styling already
+   handles long lines (overflow: auto gives a horizontal scrollbar) and
+   tall blocks scroll along with the rest of the popover via its own
+   overflow-y: auto. Nested scrolling on <pre> would be jankier than
+   just letting it expand. */
+
+/* Heading-anchor icons (the `#` link beside each heading in the article)
+   add visual noise here — the popover isn't a primary navigation surface
+   for permalinks. */
+.preview-popover .preview-body.note-body .icon-link,
+.preview-popover .preview-body.note-body .heading-anchor { display: none; }
